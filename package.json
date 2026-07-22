@@ -9,10 +9,10 @@
   "scripts": {
     "dev": "concurrently -k -n API,WEB -c magenta,cyan \"npm:dev:api\" \"npm:dev:web\"",
     "dev:web": "vite",
-    "dev:api": "node --watch server/index.mjs",
+    "dev:api": "node --watch server/local.js",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "start": "node server/index.mjs",
+    "start": "node server/local.js",
     "check": "tsc -b --pretty false"
   },
   "dependencies": {
