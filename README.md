@@ -1,23 +1,27 @@
 # MeetMiddle SG — React V1
 
-A Singapore-focused group meeting-point planner. Each participant supplies a starting point and an ending point; the app resolves those locations and recommends either:
+A Singapore-focused group meeting-point planner. Each participant supplies a starting point and, optionally, a different ending point. The app resolves those locations and recommends either:
 
-1. **Pure distance** — a geometric median that approximately minimizes the combined straight-line distance to every start and end point.
-2. **Nearest MRT/LRT** — the official Singapore rail station with the lowest total straight-line distance to every start and end point.
+1. **MRT/LRT travel time (default)** — the connected rail station with the lowest estimated group journey time inside a configurable radius around the geometric center.
+2. **Pure distance** — a geometric median that approximately minimizes the combined straight-line distance to every start and end point.
 
 ![MeetMiddle SG preview](docs/preview.png)
 
 ## V1 functionality
 
 - React 19, TypeScript, Vite, and a small Express API server.
-- Pure-distance mode is selected by default.
+- MRT/LRT travel-time mode is selected by default.
 - Add or remove any number of participants in one organizer-controlled plan.
-- Each participant has a name, start, end, and **End at the same place** option.
+- Each participant has a name, start, end, and **End at the same place** option, selected by default.
+- Configurable 1–12 km candidate radius around the fair-distance center.
+- Local Singapore rail graph covering the current MRT/LRT passenger network, including CCL6.
+- Estimated access walking, train segments, waits, interchange walking, and transfer waits.
+- Exact MRT/LRT station names and Singapore latitude/longitude coordinates work without Google.
 - Google place suggestions are restricted to Singapore and every typed query is searched with `, Singapore` appended once.
 - Six-digit postal-code variants such as `425-500` and `425 500` are normalized to `425500` before searching.
 - A typed location can still be geocoded when the user does not pick an autocomplete suggestion.
 - Google Map markers for starts, ends, the selected meeting point, and close MRT/LRT alternatives.
-- Result metrics for average endpoint distance, farthest endpoint, and total group distance.
+- Rail results show average, longest, and total estimated journey time plus alternatives and journey breakdowns.
 - Official LTA station-exit coordinates are aggregated into one point per MRT/LRT station.
 - Optional LTA DataMall train-service status check through the Express server.
 - Browser-only plan persistence with `localStorage`.
@@ -33,20 +37,25 @@ The arithmetic mean of latitude and longitude is a visual centroid, but it does 
 
 Every participant contributes two endpoint observations. When **End at the same place** is selected, the start coordinate is also used as that participant's end coordinate. This keeps every participant weighted consistently with two observations.
 
-### MRT/LRT
+### MRT/LRT travel time (default)
 
-The server downloads the official LTA station-exit GeoJSON from data.gov.sg, groups exits by station name, and averages each station's exit coordinates. The client then evaluates every station and sorts by:
+The server downloads the official LTA station-exit GeoJSON from data.gov.sg, groups exits by station name, and averages each station's exit coordinates. The client computes the geometric median, keeps connected stations inside the selected radius, and runs shortest-path searches over a local MRT/LRT graph.
 
-1. Lowest total Haversine distance to all endpoints.
-2. Lowest farthest-endpoint distance as the tie-breaker.
+Each endpoint is attached to its nearest connected station. A journey estimate includes straight-line access distance adjusted for a walking path, average initial wait, distance-based train segments, and an interchange cost containing both walking and another average wait. Candidate stations are sorted by:
 
-This is more useful for a group than merely finding the station closest to an unconstrained visual centroid.
+1. Lowest total estimated journey minutes across all endpoints.
+2. Lowest longest-endpoint journey as the tie-breaker.
+3. Lowest distance from the geometric center as the final tie-breaker.
+
+The topology follows the current passenger network published by LTA as of July 2026. Station names and coordinates remain runtime official data; the graph timing constants are explicit estimates in `src/lib/railGraph.ts`.
 
 ### Important limitation
 
-Both V1 modes use **straight-line kilometres**, not public-transport travel time, transfers, walking routes, fares, congestion, accessibility, or individual preferences. A future mode can use the Google Routes API or a transit-routing provider to minimize actual journey time.
+LTA DataMall does not publish a public station-to-station rail timing API. The local graph is therefore an efficient planning estimate, not an official timetable or live journey planner. It does not model exact platform paths, service headways by time of day, disruptions, crowding, fares, accessibility, or street-level walking routes. Singapore's official OneMap routing API can provide time-dependent public-transport itineraries, but requires a OneMap token and online requests; it is a possible validation layer for the top few local-graph candidates.
 
-## Google Maps setup
+## Optional Google Maps setup
+
+The planner works without Google when inputs are exact MRT/LRT station names (select an official station suggestion) or Singapore coordinates such as `1.3521, 103.8198`. Google is needed for arbitrary place/address and postal-code resolution, Google autocomplete, reverse-geocoded result labels, and the live map.
 
 ### 1. Create and restrict a browser key
 
@@ -72,13 +81,13 @@ cp .env.example .env
 Then edit `.env`:
 
 ```dotenv
-VITE_GOOGLE_MAPS_API_KEY=your_restricted_browser_key
+VITE_GOOGLE_MAPS_API_KEY=
 VITE_GOOGLE_MAP_ID=
 LTA_ACCOUNT_KEY=
 PORT=8787
 ```
 
-`VITE_GOOGLE_MAP_ID` is optional. The app uses Google's demo map ID when it is blank.
+Both Google variables are optional. When a browser key is supplied and the map ID is blank, the app uses Google's demo map ID.
 
 ## LTA API setup and use
 
@@ -135,7 +144,7 @@ npm run check
 
 ## Docker
 
-The Google browser variables must be present at image build time because Vite compiles them into the static bundle. The LTA key remains a runtime server variable.
+If Google features are wanted, the browser variables must be present at image build time because Vite compiles them into the static bundle. They can be omitted for station-name/coordinate-only use. The optional LTA key remains a runtime server variable.
 
 ```bash
 docker build \
@@ -153,9 +162,9 @@ docker run --rm -p 8787:8787 \
 Use the built-in **Load example** action to populate:
 
 - John Doe: `Senja LRT` → same place.
-- Aisha Tan: `ION Orchard` → `425-500`.
+- Aisha Tan: `Orchard MRT` → `Paya Lebar MRT`.
 
-Select suggestions where available, or press the calculate button and let the app geocode unresolved text automatically.
+The example works without Google. Select official station suggestions or press calculate and let exact station names resolve against the downloaded LTA station list.
 
 ## API routes
 
@@ -176,7 +185,8 @@ meetmiddle-sg/
 ├── src/
 │   ├── components/            # Inputs, participant cards, map, result panel
 │   ├── lib/
-│   │   ├── centroid.ts        # Haversine, geometric median, station ranking
+│   │   ├── centroid.ts        # Haversine and geometric median
+│   │   ├── railGraph.ts       # Rail topology, timing model, shortest paths
 │   │   ├── googleMaps.ts      # Maps loader, geocoding, reverse geocoding
 │   │   ├── location.ts        # Singapore scoping and postal normalization
 │   │   └── api.ts             # Browser calls to the Express API
@@ -209,3 +219,5 @@ The UI already separates participant records from the calculation logic, so a sh
 - [LTA DataMall](https://datamall.lta.gov.sg/)
 - [LTA static datasets](https://datamall.lta.gov.sg/content/datamall/en/static-data.html)
 - [LTA MRT Station Exit GeoJSON on data.gov.sg](https://data.gov.sg/datasets/d_b39d3a0871985372d7e1637193335da5/view)
+- [LTA current rail network](https://www.lta.gov.sg/content/ltagov/en/getting_around/public_transport/rail_network.html)
+- [OneMap public-transport routing API](https://www.onemap.gov.sg/apidocs/routing)
