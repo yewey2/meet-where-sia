@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "node -v; npm -v; npm ci --no-audit --no-fund --foreground-scripts --loglevel=verbose --logs-dir=.npm-logs || (code=$?; echo '===== NPM DEBUG LOG ====='; ls -la .npm-logs || true; tail -n 500 .npm-logs/*-debug-0.log 2>/dev/null || true; exit $code)"
+}
