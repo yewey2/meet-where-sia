@@ -939,9 +939,23 @@ svg {
   box-shadow: var(--shadow-md);
 }
 
-.google-map {
+.map-canvas {
   position: absolute;
   inset: 0;
+}
+
+.map-canvas.leaflet-container {
+  background: #e9ebef;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.leaflet-map-marker {
+  border: 0;
+  background: transparent;
+}
+
+.leaflet-control-attribution {
+  font-size: 8px;
 }
 
 .map-loading {
@@ -954,12 +968,13 @@ svg {
   color: var(--muted);
   background: rgb(244 245 247 / 92%);
   font-size: 11px;
+  z-index: 1100;
 }
 
 .map-legend {
   position: absolute;
-  right: 13px;
-  bottom: 13px;
+  top: 13px;
+  right: 54px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -971,6 +986,7 @@ svg {
   box-shadow: 0 6px 18px rgb(32 33 43 / 10%);
   backdrop-filter: blur(10px);
   font-size: 9px;
+  z-index: 1000;
 }
 
 .map-legend span {
@@ -1639,8 +1655,9 @@ svg {
   }
 
   .map-legend {
-    right: 8px;
-    bottom: 8px;
+    top: 8px;
+    right: 48px;
+    bottom: auto;
     gap: 7px;
     font-size: 8px;
   }

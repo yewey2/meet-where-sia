@@ -532,8 +532,8 @@ export default function App() {
             <div className="setup-banner">
               <strong>Works without a Google key</strong>
               <span>
-                Use exact MRT/LRT station names or Singapore coordinates. Add a
-                browser key only for address/postal search and the live map.
+                The OpenStreetMap map and exact MRT/LRT station names work
+                without a key. Add one only for address and postal-code search.
               </span>
             </div>
           ) : null}

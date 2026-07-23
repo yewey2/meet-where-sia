@@ -20,7 +20,8 @@ A Singapore-focused group meeting-point planner. Each participant supplies a sta
 - Google place suggestions are restricted to Singapore and every typed query is searched with `, Singapore` appended once.
 - Six-digit postal-code variants such as `425-500` and `425 500` are normalized to `425500` before searching.
 - A typed location can still be geocoded when the user does not pick an autocomplete suggestion.
-- Google Map markers for starts, ends, the selected meeting point, and close MRT/LRT alternatives.
+- An always-available interactive map with markers for starts, ends, the selected meeting point, and close MRT/LRT alternatives.
+- OpenStreetMap tiles through Leaflet when no Google key is configured; the official Google Maps renderer is used when a key is present.
 - Rail results show average, longest, and total estimated journey time plus alternatives and journey breakdowns.
 - Official LTA station-exit coordinates are aggregated into one point per MRT/LRT station.
 - Optional LTA DataMall train-service status check through the server API.
@@ -53,9 +54,13 @@ The topology follows the current passenger network published by LTA as of July 2
 
 LTA DataMall does not publish a public station-to-station rail timing API. The local graph is therefore an efficient planning estimate, not an official timetable or live journey planner. It does not model exact platform paths, service headways by time of day, disruptions, crowding, fares, accessibility, or street-level walking routes. Singapore's official OneMap routing API can provide time-dependent public-transport itineraries, but requires a OneMap token and online requests; it is a possible validation layer for the top few local-graph candidates.
 
-## Optional Google Maps setup
+## Map providers and optional Google setup
 
-The planner works without Google when inputs are exact MRT/LRT station names (select an official station suggestion) or Singapore coordinates such as `1.3521, 103.8198`. Google is needed for arbitrary place/address and postal-code resolution, Google autocomplete, reverse-geocoded result labels, and the live map.
+The interactive map works without any key using Leaflet and OpenStreetMap. Exact MRT/LRT station names (select an official station suggestion) and Singapore coordinates such as `1.3521, 103.8198` also resolve without Google.
+
+When a Google key is configured, the app uses the official Google Maps JavaScript renderer instead. Google is needed for arbitrary place/address and postal-code resolution, Google autocomplete, and reverse-geocoded result labels. Undocumented Google tile URLs are intentionally not used as a Leaflet layer.
+
+OpenStreetMap's public raster tiles are appropriate for modest interactive use and require the visible attribution included on the map. For substantial production traffic, configure a commercial or self-hosted OSM-derived tile provider instead of relying on the community-funded public tile servers.
 
 ### 1. Create and restrict a browser key
 
@@ -87,7 +92,7 @@ LTA_ACCOUNT_KEY=
 PORT=8787
 ```
 
-Both Google variables are optional. When a browser key is supplied and the map ID is blank, the app uses Google's demo map ID.
+Both Google variables are optional. When a browser key is supplied and the map ID is blank, the app uses Google's demo map ID. Without the key, the app automatically uses OpenStreetMap.
 
 ## LTA API setup and use
 
@@ -154,7 +159,7 @@ The three API URLs have explicit files under `api/`, so Vercel deploys each URL 
 
 No environment variables are required for a working station-name/coordinate-only deployment. Add these in **Project Settings → Environment Variables** only for the corresponding optional features:
 
-- `VITE_GOOGLE_MAPS_API_KEY` — arbitrary addresses, postal codes, place search, and the map. This is compiled into the frontend at build time, so redeploy after changing it.
+- `VITE_GOOGLE_MAPS_API_KEY` — arbitrary addresses, postal codes, place search, and Google map rendering. This is compiled into the frontend at build time, so redeploy after changing it. OpenStreetMap rendering needs no key.
 - `VITE_GOOGLE_MAP_ID` — optional custom Google map ID.
 - `LTA_ACCOUNT_KEY` — live LTA train-service alerts. This remains server-side.
 
@@ -162,7 +167,7 @@ No environment variables are required for a working station-name/coordinate-only
 
 ## Docker
 
-If Google features are wanted, the browser variables must be present at image build time because Vite compiles them into the static bundle. They can be omitted for station-name/coordinate-only use. The optional LTA key remains a runtime server variable.
+If Google features are wanted, the browser variables must be present at image build time because Vite compiles them into the static bundle. They can be omitted for OpenStreetMap and station-name/coordinate use. The optional LTA key remains a runtime server variable.
 
 ```bash
 docker build \
@@ -241,6 +246,8 @@ The UI already separates participant records from the calculation logic, so a sh
 - [Google Maps JavaScript Place Autocomplete Data API](https://developers.google.com/maps/documentation/javascript/place-autocomplete-data)
 - [Google Maps JavaScript Geocoding service](https://developers.google.com/maps/documentation/javascript/geocoding)
 - [Google Maps Platform API security guidance](https://developers.google.com/maps/api-security-best-practices)
+- [Leaflet documentation](https://leafletjs.com/reference.html)
+- [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
 - [LTA DataMall](https://datamall.lta.gov.sg/)
 - [LTA static datasets](https://datamall.lta.gov.sg/content/datamall/en/static-data.html)
 - [LTA MRT Station Exit GeoJSON on data.gov.sg](https://data.gov.sg/datasets/d_b39d3a0871985372d7e1637193335da5/view)
