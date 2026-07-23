@@ -363,12 +363,9 @@ export function rankStationsByTravelTime(
   stations: MrtStation[],
   points: EndpointPoint[],
   center: Coordinate,
-  radiusKm: number,
 ): RankedStation[] {
   const graph = buildRailGraph(stations);
-  const candidates = graph.stations.filter(
-    (station) => haversineKm(center, station) <= radiusKm,
-  );
+  const candidates = graph.stations;
   if (candidates.length === 0) return [];
 
   const endpointPaths = points.map((point) => {
@@ -421,9 +418,19 @@ export function rankStationsByTravelTime(
       };
     })
     .filter((station): station is RankedStation => Boolean(station))
-    .sort((a, b) =>
-      a.totalMinutes - b.totalMinutes ||
-      a.maxMinutes - b.maxMinutes ||
-      a.centroidKm - b.centroidKm,
-    );
+    .sort((a, b) => {
+      // Fairness must lead the ordering. If total time leads, ride minutes along
+      // a shared route largely cancel out and any positive transfer cost makes
+      // interchange stations dominate even when one person travels much longer.
+      const longestJourneyDelta = a.maxMinutes - b.maxMinutes;
+      if (Math.abs(longestJourneyDelta) > 0.05) return longestJourneyDelta;
+
+      const averageJourneyDelta = a.averageMinutes - b.averageMinutes;
+      if (Math.abs(averageJourneyDelta) > 0.05) return averageJourneyDelta;
+
+      const centerDistanceDelta = a.centroidKm - b.centroidKm;
+      if (Math.abs(centerDistanceDelta) > 0.01) return centerDistanceDelta;
+
+      return a.name.localeCompare(b.name);
+    });
 }

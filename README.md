@@ -2,7 +2,7 @@
 
 A Singapore-focused group meeting-point planner. Each participant supplies a starting point and, optionally, a different ending point. The app resolves those locations and recommends either:
 
-1. **MRT/LRT travel time (default)** — the connected rail station with the lowest estimated group journey time inside a configurable radius around the geometric center.
+1. **MRT/LRT travel time (default)** — the connected rail station that minimizes the longest estimated journey, with the group average used as the tie-breaker.
 2. **Pure distance** — a geometric median that approximately minimizes the combined straight-line distance to every start and end point.
 
 ![MeetMiddle SG preview](docs/preview.png)
@@ -13,7 +13,7 @@ A Singapore-focused group meeting-point planner. Each participant supplies a sta
 - MRT/LRT travel-time mode is selected by default.
 - Add or remove any number of participants in one organizer-controlled plan.
 - Each participant has a name, start, end, and **End at the same place** option, selected by default.
-- Configurable 1–12 km candidate radius around the fair-distance center.
+- Every connected MRT/LRT station is evaluated; no straight-line radius pre-filter is applied to rail journeys.
 - Local Singapore rail graph covering the current MRT/LRT passenger network, including CCL6.
 - Estimated access walking, train segments, waits, interchange walking, and transfer waits.
 - Exact MRT/LRT station names and Singapore latitude/longitude coordinates work without Google.
@@ -40,13 +40,15 @@ Every participant contributes two endpoint observations. When **End at the same 
 
 ### MRT/LRT travel time (default)
 
-The server downloads the official LTA station-exit GeoJSON from data.gov.sg, groups exits by station name, and averages each station's exit coordinates. The client computes the geometric median, keeps connected stations inside the selected radius, and runs shortest-path searches over a local MRT/LRT graph.
+The server downloads the official LTA station-exit GeoJSON from data.gov.sg, groups exits by station name, and averages each station's exit coordinates. The client evaluates every connected station and runs shortest-path searches over a local MRT/LRT graph.
 
 Each endpoint is attached to its nearest connected station. A journey estimate includes straight-line access distance adjusted for a walking path, average initial wait, distance-based train segments, and an interchange cost containing both walking and another average wait. Candidate stations are sorted by:
 
-1. Lowest total estimated journey minutes across all endpoints.
-2. Lowest longest-endpoint journey as the tie-breaker.
+1. Lowest longest-endpoint journey, so one person is not given a much worse trip merely to reduce the group total.
+2. Lowest average journey across all endpoints as the tie-breaker.
 3. Lowest distance from the geometric center as the final tie-breaker.
+
+Transfer walking and waiting are included once in each affected journey. They are not separately added to the station ranking; their effect is already present in the journey duration.
 
 The topology follows the current passenger network published by LTA as of July 2026. Station names and coordinates remain runtime official data; the graph timing constants are explicit estimates in `src/lib/railGraph.ts`.
 

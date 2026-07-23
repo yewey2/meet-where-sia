@@ -367,44 +367,6 @@ svg {
   color: var(--orange);
 }
 
-.radius-control {
-  display: grid;
-  gap: 8px;
-  margin-top: 13px;
-  padding: 12px 14px;
-  border: 1px solid #dedaf7;
-  border-radius: 13px;
-  background: #faf9ff;
-}
-
-.radius-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: #555965;
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.radius-label-row output {
-  color: var(--accent-dark);
-  font-variant-numeric: tabular-nums;
-}
-
-.radius-control input[type='range'] {
-  width: 100%;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.radius-control p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.5;
-}
-
 .people-header {
   display: flex;
   align-items: flex-start;
@@ -1004,14 +966,6 @@ svg {
 .legend-start { background: var(--green); }
 .legend-end { background: var(--blue); }
 .legend-result { background: var(--accent); }
-
-.legend-radius {
-  width: 10px;
-  height: 10px;
-  border: 1.5px solid #6b5fd1;
-  border-radius: 50%;
-  background: rgb(124 110 230 / 10%);
-}
 
 .map-marker {
   display: grid;

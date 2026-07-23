@@ -20,7 +20,6 @@ type MarkerKind = 'start' | 'end' | 'result' | 'alternative';
 interface GoogleMapOverlays {
   markers: google.maps.marker.AdvancedMarkerElement[];
   lines: google.maps.Polyline[];
-  circles: google.maps.Circle[];
 }
 
 function markerElement(kind: MarkerKind, text: string) {
@@ -42,15 +41,12 @@ function leafletMarkerIcon(kind: MarkerKind, text: string) {
   });
 }
 
-function MapLegend({ result }: { result: MeetingResult | null }) {
+function MapLegend() {
   return (
     <div className="map-legend" aria-label="Map legend">
       <span><i className="legend-dot legend-start" />Start</span>
       <span><i className="legend-dot legend-end" />End</span>
       <span><i className="legend-dot legend-result" />Meeting point</span>
-      {result?.mode === 'rail' ? (
-        <span><i className="legend-radius" />Search radius</span>
-      ) : null}
     </div>
   );
 }
@@ -136,20 +132,6 @@ function OpenStreetMapPanel({ points, result }: MapPanelProps) {
       bounds.extend([result.lat, result.lng]);
 
       if (result.mode === 'rail') {
-        const radiusCircle = L.circle(
-          [result.center.lat, result.center.lng],
-          {
-            color: '#5d50c6',
-            fillColor: '#7c6ee6',
-            fillOpacity: 0.08,
-            interactive: false,
-            opacity: 0.7,
-            radius: result.radiusKm * 1000,
-            weight: 1.5,
-          },
-        ).addTo(overlays);
-        bounds.extend(radiusCircle.getBounds());
-
         for (const alternative of result.alternatives.slice(1, 4)) {
           L.marker([alternative.lat, alternative.lng], {
             alt: `Alternative: ${alternative.name} ${alternative.network}`,
@@ -187,7 +169,7 @@ function OpenStreetMapPanel({ points, result }: MapPanelProps) {
           <span className="input-spinner" /> Loading map…
         </div>
       ) : null}
-      <MapLegend result={result} />
+      <MapLegend />
     </div>
   );
 }
@@ -198,7 +180,6 @@ function GoogleMapPanel({ points, result }: MapPanelProps) {
   const overlaysRef = useRef<GoogleMapOverlays>({
     markers: [],
     lines: [],
-    circles: [],
   });
   const [loadError, setLoadError] = useState('');
   const [isReady, setIsReady] = useState(false);
@@ -257,15 +238,13 @@ function GoogleMapPanel({ points, result }: MapPanelProps) {
 
       for (const marker of overlaysRef.current.markers) marker.map = null;
       for (const line of overlaysRef.current.lines) line.setMap(null);
-      for (const circle of overlaysRef.current.circles) circle.setMap(null);
-      overlaysRef.current = { markers: [], lines: [], circles: [] };
+      overlaysRef.current = { markers: [], lines: [] };
 
       if (cancelled) return;
 
       const bounds = new maps.maps.LatLngBounds();
       const markers: google.maps.marker.AdvancedMarkerElement[] = [];
       const lines: google.maps.Polyline[] = [];
-      const circles: google.maps.Circle[] = [];
 
       for (const point of points) {
         const marker = new AdvancedMarkerElement({
@@ -312,21 +291,6 @@ function GoogleMapPanel({ points, result }: MapPanelProps) {
         bounds.extend({ lat: result.lat, lng: result.lng });
 
         if (result.mode === 'rail') {
-          const radiusCircle = new maps.maps.Circle({
-            map,
-            center: result.center,
-            radius: result.radiusKm * 1000,
-            strokeColor: '#5d50c6',
-            strokeOpacity: 0.7,
-            strokeWeight: 1.5,
-            fillColor: '#7c6ee6',
-            fillOpacity: 0.08,
-            clickable: false,
-          });
-          circles.push(radiusCircle);
-          const circleBounds = radiusCircle.getBounds();
-          if (circleBounds) bounds.union(circleBounds);
-
           for (const alternative of result.alternatives.slice(1, 4)) {
             const alternativeMarker = new AdvancedMarkerElement({
               map,
@@ -341,7 +305,7 @@ function GoogleMapPanel({ points, result }: MapPanelProps) {
         }
       }
 
-      overlaysRef.current = { markers, lines, circles };
+      overlaysRef.current = { markers, lines };
 
       if (points.length === 0 && !result) {
         map.setCenter(SINGAPORE_CENTER);
@@ -386,7 +350,7 @@ function GoogleMapPanel({ points, result }: MapPanelProps) {
           <span className="input-spinner" /> Loading map…
         </div>
       ) : null}
-      <MapLegend result={result} />
+      <MapLegend />
     </div>
   );
 }

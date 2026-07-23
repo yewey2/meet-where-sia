@@ -87,8 +87,6 @@ export interface RailResult extends Coordinate {
   address: string;
   station: RankedStation;
   alternatives: RankedStation[];
-  center: Coordinate;
-  radiusKm: number;
   candidateCount: number;
   totalKm: number;
   averageKm: number;

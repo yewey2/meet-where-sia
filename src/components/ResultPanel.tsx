@@ -145,20 +145,20 @@ export function ResultPanel({
         <div className="metric-card">
           <span>
             {result.mode === 'rail'
-              ? 'Average estimated journey'
+              ? 'Longest estimated journey'
               : 'Average endpoint distance'}
           </span>
           <strong>
             {result.mode === 'rail'
-              ? formatMinutes(result.averageMinutes)
+              ? formatMinutes(result.maxMinutes)
               : formatKm(result.averageKm)}
           </strong>
         </div>
         <div className="metric-card">
-          <span>{result.mode === 'rail' ? 'Longest estimated journey' : 'Farthest endpoint'}</span>
+          <span>{result.mode === 'rail' ? 'Average estimated journey' : 'Farthest endpoint'}</span>
           <strong>
             {result.mode === 'rail'
-              ? formatMinutes(result.maxMinutes)
+              ? formatMinutes(result.averageMinutes)
               : formatKm(result.maxKm)}
           </strong>
         </div>
@@ -176,10 +176,11 @@ export function ResultPanel({
         <>
           <TrainStatus alerts={trainAlerts} />
           <div className="method-note rail-method-note">
-            Compared {result.candidateCount} connected stations within{' '}
-            {result.radiusKm.toFixed(1)} km of the geometric center. Times are
-            local graph estimates including access walking, average waits, train
-            segments, and 4-minute interchange walks—not official timetables.
+            Compared all {result.candidateCount} connected stations. Ranked by
+            the shortest longest-endpoint journey, then the lowest group average.
+            Times are local graph estimates including access walking, average
+            waits, train segments, and 4-minute interchange walks—not official
+            timetables.
           </div>
           <div className="journey-summary">
             <div className="section-label">Longest endpoint journeys</div>
@@ -212,12 +213,13 @@ export function ResultPanel({
                     <span className="alternative-name">
                       <strong>{station.name}</strong>
                       <small>
-                        {station.lineCodes.join('/')} · avg.{' '}
+                        {station.lineCodes.join('/')} · longest{' '}
+                        {formatMinutes(station.maxMinutes)} · avg.{' '}
                         {formatMinutes(station.averageMinutes)} ·{' '}
                         {formatKm(station.centroidKm)} from center
                       </small>
                     </span>
-                    <span>{formatMinutes(station.totalMinutes)}</span>
+                    <span>{formatMinutes(station.maxMinutes)} max</span>
                   </div>
                 ))}
               </div>

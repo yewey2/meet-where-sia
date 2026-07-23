@@ -42,7 +42,6 @@ import type {
 } from './types';
 
 const STORAGE_KEY = 'meetmiddle-sg-v1';
-const DEFAULT_RADIUS_KM = 4;
 
 function createParticipant(name = ''): Participant {
   return {
@@ -63,7 +62,6 @@ function isLocationValue(value: unknown): value is LocationValue {
 function loadSavedState(): {
   participants: Participant[];
   mode: Mode;
-  radiusKm: number;
 } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -71,13 +69,11 @@ function loadSavedState(): {
       return {
         participants: [createParticipant()],
         mode: 'rail',
-        radiusKm: DEFAULT_RADIUS_KM,
       };
     }
     const parsed = JSON.parse(raw) as {
       participants?: Participant[];
       mode?: Mode;
-      radiusKm?: number;
     };
 
     const participants = Array.isArray(parsed.participants)
@@ -95,18 +91,11 @@ function loadSavedState(): {
     return {
       participants: participants.length ? participants : [createParticipant()],
       mode: parsed.mode === 'distance' ? 'distance' : 'rail',
-      radiusKm:
-        typeof parsed.radiusKm === 'number' &&
-        parsed.radiusKm >= 1 &&
-        parsed.radiusKm <= 12
-          ? parsed.radiusKm
-          : DEFAULT_RADIUS_KM,
     };
   } catch {
     return {
       participants: [createParticipant()],
       mode: 'rail',
-      radiusKm: DEFAULT_RADIUS_KM,
     };
   }
 }
@@ -227,7 +216,6 @@ export default function App() {
   const saved = useMemo(loadSavedState, []);
   const [participants, setParticipants] = useState<Participant[]>(saved.participants);
   const [mode, setMode] = useState<Mode>(saved.mode);
-  const [radiusKm, setRadiusKm] = useState(saved.radiusKm);
   const [result, setResult] = useState<MeetingResult | null>(null);
   const [stations, setStations] = useState<MrtStation[]>([]);
   const [stationLoadError, setStationLoadError] = useState('');
@@ -241,12 +229,12 @@ export default function App() {
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ participants, mode, radiusKm }),
+        JSON.stringify({ participants, mode }),
       );
     } catch {
       // The planner still works when storage is blocked (for example, private embeds).
     }
-  }, [mode, participants, radiusKm]);
+  }, [mode, participants]);
 
   useEffect(() => {
     if (!hasGoogleKey) return;
@@ -328,7 +316,6 @@ export default function App() {
       },
     ]);
     setMode('rail');
-    setRadiusKm(DEFAULT_RADIUS_KM);
     setResult(null);
     setGlobalError('');
   }
@@ -336,7 +323,6 @@ export default function App() {
   function resetPlanner() {
     setParticipants([createParticipant()]);
     setMode('rail');
-    setRadiusKm(DEFAULT_RADIUS_KM);
     setResult(null);
     setGlobalError('');
   }
@@ -428,14 +414,11 @@ export default function App() {
           availableStations,
           points,
           center,
-          radiusKm,
         );
         const selected = ranked[0];
 
         if (!selected) {
-          throw new Error(
-            `No connected MRT/LRT station is within ${radiusKm} km of the fair-distance center. Increase the meeting radius.`,
-          );
+          throw new Error('No connected MRT/LRT station could be compared.');
         }
 
         const address = await reverseGeocode(selected);
@@ -447,8 +430,6 @@ export default function App() {
           address,
           station: selected,
           alternatives: ranked.slice(0, 4),
-          center,
-          radiusKm,
           candidateCount: ranked.length,
           totalKm: selected.totalKm,
           averageKm: selected.averageKm,
@@ -489,7 +470,7 @@ export default function App() {
   const modeDescription =
     mode === 'distance'
       ? 'Minimizes the combined straight-line kilometres across every start and end point.'
-      : 'Uses a local rail graph to minimize estimated group journey time within the chosen radius.';
+      : 'Compares every connected station and minimizes the longest estimated journey, then the group average.';
 
   return (
     <div className="app-shell">
@@ -571,31 +552,6 @@ export default function App() {
               </button>
             </div>
             <p className="mode-description">{modeDescription}</p>
-            {mode === 'rail' ? (
-              <div className="radius-control">
-                <div className="radius-label-row">
-                  <label htmlFor="meeting-radius">Meeting radius</label>
-                  <output htmlFor="meeting-radius">{radiusKm.toFixed(1)} km</output>
-                </div>
-                <input
-                  id="meeting-radius"
-                  type="range"
-                  min="1"
-                  max="12"
-                  step="0.5"
-                  value={radiusKm}
-                  onChange={(event) => {
-                    setRadiusKm(Number(event.target.value));
-                    setResult(null);
-                    setGlobalError('');
-                  }}
-                />
-                <p>
-                  Only stations inside this radius from the geometric center are
-                  compared by estimated train, transfer, waiting, and access-walk time.
-                </p>
-              </div>
-            ) : null}
             {mode === 'rail' && stationLoadError ? (
               <p className="inline-warning">Station data: {stationLoadError}</p>
             ) : null}
