@@ -1,5 +1,17 @@
 import 'dotenv/config';
-import app from '../api/index.js';
+import express from 'express';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import app from './index.mjs';
+
+const distDirectory = fileURLToPath(new URL('../dist', import.meta.url));
+
+if (existsSync(distDirectory)) {
+  app.use(express.static(distDirectory));
+  app.get('/{*path}', (_request, response) => {
+    response.sendFile('index.html', { root: distDirectory });
+  });
+}
 
 const port = Number(process.env.PORT || 8787);
 

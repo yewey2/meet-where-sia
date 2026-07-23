@@ -9,7 +9,7 @@ A Singapore-focused group meeting-point planner. Each participant supplies a sta
 
 ## V1 functionality
 
-- React 19, TypeScript, Vite, and a small Express API server.
+- React 19, TypeScript, Vite, Vercel Functions, and a small Express server for local/Docker use.
 - MRT/LRT travel-time mode is selected by default.
 - Add or remove any number of participants in one organizer-controlled plan.
 - Each participant has a name, start, end, and **End at the same place** option, selected by default.
@@ -23,7 +23,7 @@ A Singapore-focused group meeting-point planner. Each participant supplies a sta
 - Google Map markers for starts, ends, the selected meeting point, and close MRT/LRT alternatives.
 - Rail results show average, longest, and total estimated journey time plus alternatives and journey breakdowns.
 - Official LTA station-exit coordinates are aggregated into one point per MRT/LRT station.
-- Optional LTA DataMall train-service status check through the Express server.
+- Optional LTA DataMall train-service status check through the server API.
 - Browser-only plan persistence with `localStorage`.
 - Responsive desktop and mobile layouts.
 - Loading, empty, validation, API-setup, and upstream-error states.
@@ -103,7 +103,7 @@ The app currently uses the AccountKey for:
 
 - `TrainServiceAlerts`, so MRT mode can show whether LTA reports normal/minor-delay service or a major disruption.
 
-The AccountKey is not needed for station geometry. Station locations come from LTA's public static/open-data GeoJSON, proxied and cached by the Express server.
+The AccountKey is not needed for station geometry. Station locations come from LTA's public static/open-data GeoJSON, proxied and cached by the server API.
 
 Other potentially useful LTA DataMall additions for later versions include station crowd density, crowd forecasts, facilities maintenance, passenger-volume data, and bus information. They do not directly provide a general door-to-door route planner, so they are not used to calculate the V1 centroid.
 
@@ -141,6 +141,24 @@ Open `http://localhost:8787`.
 ```bash
 npm run check
 ```
+
+## Deploy to Vercel
+
+Import this repository into Vercel and leave the detected framework as **Vite**. The checked-in `vercel.json` selects Singapore (`sin1`) for the API functions, while Vercel builds the frontend into `dist` using `npm run build`.
+
+The three API URLs have explicit files under `api/`, so Vercel deploys each URL as its own function:
+
+- `api/health.js` → `/api/health`
+- `api/mrt-stations.js` → `/api/mrt-stations`
+- `api/lta/train-alerts.js` → `/api/lta/train-alerts`
+
+No environment variables are required for a working station-name/coordinate-only deployment. Add these in **Project Settings → Environment Variables** only for the corresponding optional features:
+
+- `VITE_GOOGLE_MAPS_API_KEY` — arbitrary addresses, postal codes, place search, and the map. This is compiled into the frontend at build time, so redeploy after changing it.
+- `VITE_GOOGLE_MAP_ID` — optional custom Google map ID.
+- `LTA_ACCOUNT_KEY` — live LTA train-service alerts. This remains server-side.
+
+`PORT` is only for local/Docker execution; do not set it on Vercel.
 
 ## Docker
 
@@ -180,8 +198,14 @@ The station list is cached in memory for 12 hours. LTA service alerts are cached
 
 ```text
 meetmiddle-sg/
+├── api/                       # URL-matched Vercel function handlers
+│   ├── lta/train-alerts.js
+│   ├── health.js
+│   └── mrt-stations.js
 ├── server/
-│   └── index.mjs              # Express API, LTA proxy, station aggregation
+│   ├── index.mjs              # Express routes for local/Docker use
+│   ├── local.js               # Local listener and built frontend serving
+│   └── services.mjs           # Shared LTA proxy, normalization, and caches
 ├── src/
 │   ├── components/            # Inputs, participant cards, map, result panel
 │   ├── lib/
@@ -189,13 +213,14 @@ meetmiddle-sg/
 │   │   ├── railGraph.ts       # Rail topology, timing model, shortest paths
 │   │   ├── googleMaps.ts      # Maps loader, geocoding, reverse geocoding
 │   │   ├── location.ts        # Singapore scoping and postal normalization
-│   │   └── api.ts             # Browser calls to the Express API
+│   │   └── api.ts             # Browser calls to /api
 │   ├── App.tsx
 │   ├── styles.css
 │   └── types.ts
 ├── .env.example
 ├── Dockerfile
 ├── package.json
+├── vercel.json
 └── vite.config.ts
 ```
 

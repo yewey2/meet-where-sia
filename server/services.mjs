@@ -1,7 +1,3 @@
-import express from 'express';
-
-const app = express();
-
 const STATION_DATASET_ID = 'd_b39d3a0871985372d7e1637193335da5';
 const STATION_POLL_URL = `https://api-open.data.gov.sg/v1/public/api/datasets/${STATION_DATASET_ID}/poll-download`;
 const LTA_ALERTS_URL =
@@ -12,9 +8,6 @@ const ALERT_CACHE_MS = 60 * 1000;
 
 let stationCache;
 let alertCache;
-
-app.disable('x-powered-by');
-app.use(express.json({ limit: '100kb' }));
 
 function titleCaseStation(value) {
   const smallWords = new Set(['by', 'the', 'of', 'and']);
@@ -110,7 +103,18 @@ function aggregateStationExits(geojson) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-async function loadStations() {
+export function getHealthPayload() {
+  return {
+    ok: true,
+    googleMapsConfigured: Boolean(
+      String(process.env.VITE_GOOGLE_MAPS_API_KEY || '').trim(),
+    ),
+    ltaConfigured: Boolean(String(process.env.LTA_ACCOUNT_KEY || '').trim()),
+    time: new Date().toISOString(),
+  };
+}
+
+export async function loadStations() {
   if (stationCache && Date.now() - stationCache.cachedAtMs < STATION_CACHE_MS) {
     return stationCache.payload;
   }
@@ -165,7 +169,7 @@ function normaliseTrainAlerts(payload) {
   };
 }
 
-async function loadTrainAlerts() {
+export async function loadTrainAlerts() {
   const accountKey = String(process.env.LTA_ACCOUNT_KEY || '').trim();
   if (!accountKey) {
     return {
@@ -203,40 +207,3 @@ async function loadTrainAlerts() {
     };
   }
 }
-
-app.get('/api/health', (_request, response) => {
-  response.json({
-    ok: true,
-    googleMapsConfigured: Boolean(
-      String(process.env.VITE_GOOGLE_MAPS_API_KEY || '').trim(),
-    ),
-    ltaConfigured: Boolean(String(process.env.LTA_ACCOUNT_KEY || '').trim()),
-    time: new Date().toISOString(),
-  });
-});
-
-app.get('/api/mrt-stations', async (_request, response) => {
-  try {
-    response.set('Cache-Control', 'public, max-age=3600');
-    response.json(await loadStations());
-  } catch (error) {
-    response.status(502).json({
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Could not load the official LTA station dataset.',
-    });
-  }
-});
-
-app.get('/api/lta/train-alerts', async (_request, response) => {
-  response.set('Cache-Control', 'private, max-age=60');
-  response.json(await loadTrainAlerts());
-});
-
-app.use((error, _request, response, _next) => {
-  console.error(error);
-  response.status(500).json({ error: 'Unexpected server error.' });
-});
-
-export default app;

@@ -1,9 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
+  "framework": "vite",
+  "regions": ["sin1"],
+  "functions": {
+    "api/health.js": {
+      "maxDuration": 10
+    },
+    "api/mrt-stations.js": {
+      "maxDuration": 30
+    },
+    "api/lta/train-alerts.js": {
+      "maxDuration": 15
     }
-  ]
+  }
 }
