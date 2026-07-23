@@ -62,6 +62,9 @@ export interface RankedStation extends MrtStation {
 export interface RailJourneyEstimate {
   endpointId: string;
   endpointLabel: string;
+  endpointKind: 'start' | 'end';
+  participantId: string;
+  participantName: string;
   originStationId: string;
   originStationName: string;
   accessWalkMinutes: number;

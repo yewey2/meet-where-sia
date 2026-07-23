@@ -42,6 +42,7 @@ import type {
 } from './types';
 
 const STORAGE_KEY = 'meetmiddle-sg-v1';
+// Keep the legacy key so existing users retain their saved plans after rename.
 
 function createParticipant(name = ''): Participant {
   return {
@@ -399,7 +400,7 @@ export default function App() {
         const center = geometricMedian(points);
         const metrics = distanceMetrics(center, points);
         const address = await reverseGeocode(center);
-        const title = address.split(',')[0]?.trim() || 'Fair distance center';
+        const title = address.split(',')[0]?.trim() || 'Fair distance centre';
 
         setResult({
           mode: 'distance',
@@ -478,23 +479,9 @@ export default function App() {
         <div className="brand-lockup">
           <div className="brand-mark"><MapPinIcon /></div>
           <div>
-            <strong>MeetMiddle</strong>
+            <strong>Meet Where Sia</strong>
             <span>Singapore</span>
           </div>
-          <span className="version-badge">V1</span>
-        </div>
-
-        <div className="api-statuses">
-          <span className={`api-pill ${hasGoogleKey ? 'is-ready' : 'is-optional'}`}>
-            <i /> Google {hasGoogleKey ? 'ready' : 'optional'}
-          </span>
-          <span
-            className={`api-pill ${
-              trainAlerts?.configured ? 'is-ready' : 'is-optional'
-            }`}
-          >
-            <i /> LTA {trainAlerts?.configured ? 'connected' : 'optional'}
-          </span>
         </div>
       </header>
 
@@ -505,22 +492,12 @@ export default function App() {
             <h1>Find the fairest place to meet.</h1>
             <p>
               Enter every person’s start and end point. The app resolves each
-              Singapore location, then finds one practical center for the group.
+              Singapore location, then finds one practical centre for the group.
             </p>
           </div>
 
-          {!hasGoogleKey ? (
-            <div className="setup-banner">
-              <strong>Works without a Google key</strong>
-              <span>
-                The OpenStreetMap map and exact MRT/LRT station names work
-                without a key. Add one only for address and postal-code search.
-              </span>
-            </div>
-          ) : null}
-
           <div className="mode-section">
-            <div className="section-label">How should the center be chosen?</div>
+            <div className="section-label">How should the centre be chosen?</div>
             <div className="mode-switch" role="radiogroup" aria-label="Meeting point mode">
               <button
                 type="button"
@@ -564,7 +541,7 @@ export default function App() {
                 <p>{participants.length} {participants.length === 1 ? 'person' : 'people'} in this plan</p>
               </div>
               <button type="button" className="text-button" onClick={loadExample}>
-                Load example
+                Try an example
               </button>
             </div>
 
@@ -610,18 +587,18 @@ export default function App() {
             {isCalculating
               ? 'Calculating…'
               : mode === 'distance'
-                ? 'Find the distance center'
+                ? 'Find the distance centre'
                 : 'Find the best MRT/LRT'}
           </button>
 
           <div className="planner-footnote">
-            <span>V1 saves the plan only in this browser.</span>
-            <button type="button" onClick={resetPlanner}>Clear plan</button>
+            <span>Plan saved on this device</span>
+            <nav aria-label="Planner and legal links">
+              <a href="/privacy.html">Privacy</a>
+              <a href="/terms.html">Terms</a>
+              <button type="button" onClick={resetPlanner}>Clear plan</button>
+            </nav>
           </div>
-          <p className="v2-note">
-            Shared editable links, contributor emails, and multi-user changes are
-            intentionally reserved for V2.
-          </p>
         </section>
 
         <aside className="results-column">
@@ -629,9 +606,7 @@ export default function App() {
           <ResultPanel
             result={result}
             isCalculating={isCalculating}
-            participantCount={participants.length}
             trainAlerts={trainAlerts}
-            stationCount={stations.length}
           />
         </aside>
       </main>

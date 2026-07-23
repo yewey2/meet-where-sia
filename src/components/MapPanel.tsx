@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { EndpointPoint, MeetingResult } from '../types';
+import { getGoogleMapsApiKey } from '../lib/googleMaps';
 import {
-  getGoogleMapId,
-  getGoogleMapsApiKey,
-  loadGoogleMaps,
-} from '../lib/googleMaps';
+  createGoogleMapTilesSession,
+  fetchGoogleMapAttribution,
+  googleMapTileUrl,
+} from '../lib/googleMapTiles';
 import { SINGAPORE_CENTER } from '../lib/location';
-import { MapPinIcon } from './Icons';
 
 interface MapPanelProps {
   points: EndpointPoint[];
@@ -16,10 +16,25 @@ interface MapPanelProps {
 }
 
 type MarkerKind = 'start' | 'end' | 'result' | 'alternative';
+type MapProvider = 'google' | 'openstreetmap';
 
-interface GoogleMapOverlays {
-  markers: google.maps.marker.AdvancedMarkerElement[];
-  lines: google.maps.Polyline[];
+const GOOGLE_MAPS_ATTRIBUTION =
+  '<span class="google-maps-attribution" translate="no">Google Maps</span>';
+const OPENSTREETMAP_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>'"]/g,
+    (character) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;',
+      })[character] || character,
+  );
 }
 
 function markerElement(kind: MarkerKind, text: string) {
@@ -51,36 +66,112 @@ function MapLegend() {
   );
 }
 
-function OpenStreetMapPanel({ points, result }: MapPanelProps) {
+function addOpenStreetMapLayer(map: L.Map) {
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: OPENSTREETMAP_ATTRIBUTION,
+    maxZoom: 19,
+  }).addTo(map);
+}
+
+export function MapPanel({ points, result }: MapPanelProps) {
+  const apiKey = useMemo(getGoogleMapsApiKey, []);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | undefined>(undefined);
   const overlaysRef = useRef<L.LayerGroup | undefined>(undefined);
   const [isReady, setIsReady] = useState(false);
+  const [provider, setProvider] = useState<MapProvider>(
+    apiKey ? 'google' : 'openstreetmap',
+  );
+  const [providerNotice, setProviderNotice] = useState('');
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    let cancelled = false;
+    let map: L.Map | undefined;
+    let attributionRequest: AbortController | undefined;
+    const setupRequest = new AbortController();
 
-    const map = L.map(containerRef.current, {
-      attributionControl: true,
-      zoomControl: true,
-    }).setView([SINGAPORE_CENTER.lat, SINGAPORE_CENTER.lng], 11);
+    void (async () => {
+      map = L.map(containerRef.current as HTMLDivElement, {
+        attributionControl: true,
+        zoomControl: true,
+      }).setView([SINGAPORE_CENTER.lat, SINGAPORE_CENTER.lng], 11);
 
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19,
-    }).addTo(map);
+      if (apiKey) {
+        try {
+          const tileSession = await createGoogleMapTilesSession(
+            apiKey,
+            setupRequest.signal,
+          );
+          if (cancelled || !map) return;
 
-    mapRef.current = map;
-    overlaysRef.current = L.layerGroup().addTo(map);
-    setIsReady(true);
+          L.tileLayer(googleMapTileUrl(apiKey, tileSession.session), {
+            attribution: GOOGLE_MAPS_ATTRIBUTION,
+            maxZoom: 22,
+          }).addTo(map);
+          setProvider('google');
+
+          let currentCopyright = '';
+          const updateAttribution = () => {
+            if (!map) return;
+            attributionRequest?.abort();
+            attributionRequest = new AbortController();
+            const bounds = map.getBounds();
+            void fetchGoogleMapAttribution(
+              apiKey,
+              tileSession.session,
+              {
+                north: bounds.getNorth(),
+                south: bounds.getSouth(),
+                east: bounds.getEast(),
+                west: bounds.getWest(),
+              },
+              map.getZoom(),
+              attributionRequest.signal,
+            )
+              .then((copyright) => {
+                if (!map || !copyright || copyright === currentCopyright) return;
+                if (currentCopyright) {
+                  map.attributionControl.removeAttribution(currentCopyright);
+                }
+                currentCopyright = escapeHtml(copyright);
+                map.attributionControl.addAttribution(currentCopyright);
+              })
+              .catch(() => {
+                // The permanent Google Maps attribution remains visible even if
+                // the viewport metadata request is temporarily unavailable.
+              });
+          };
+
+          map.on('moveend', updateAttribution);
+          updateAttribution();
+        } catch (error) {
+          if (cancelled || !map) return;
+          console.warn('Google Maps tiles were unavailable.', error);
+          addOpenStreetMapLayer(map);
+          setProvider('openstreetmap');
+          setProviderNotice('Google Maps is unavailable. Showing the backup map.');
+        }
+      } else {
+        addOpenStreetMapLayer(map);
+        setProvider('openstreetmap');
+      }
+
+      if (cancelled || !map) return;
+      mapRef.current = map;
+      overlaysRef.current = L.layerGroup().addTo(map);
+      setIsReady(true);
+    })();
 
     return () => {
-      map.remove();
+      cancelled = true;
+      setupRequest.abort();
+      attributionRequest?.abort();
+      map?.remove();
       mapRef.current = undefined;
       overlaysRef.current = undefined;
     };
-  }, []);
+  }, [apiKey]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -162,203 +253,21 @@ function OpenStreetMapPanel({ points, result }: MapPanelProps) {
         ref={containerRef}
         className="map-canvas"
         role="application"
-        aria-label="OpenStreetMap map of participant locations and meeting point"
+        aria-label={`${
+          provider === 'google' ? 'Google Maps' : 'OpenStreetMap'
+        } map of participant locations and meeting point`}
       />
       {!isReady ? (
-        <div className="map-loading">
+        <div className="map-loading" role="status">
           <span className="input-spinner" /> Loading map…
+        </div>
+      ) : null}
+      {providerNotice ? (
+        <div className="map-provider-notice" role="status">
+          {providerNotice}
         </div>
       ) : null}
       <MapLegend />
     </div>
-  );
-}
-
-function GoogleMapPanel({ points, result }: MapPanelProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<google.maps.Map | undefined>(undefined);
-  const overlaysRef = useRef<GoogleMapOverlays>({
-    markers: [],
-    lines: [],
-  });
-  const [loadError, setLoadError] = useState('');
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const maps = await loadGoogleMaps();
-        const { Map } = (await maps.maps.importLibrary(
-          'maps',
-        )) as google.maps.MapsLibrary;
-        await maps.maps.importLibrary('marker');
-
-        if (cancelled || !containerRef.current) return;
-
-        mapRef.current = new Map(containerRef.current, {
-          center: SINGAPORE_CENTER,
-          zoom: 11,
-          mapId: getGoogleMapId(),
-          disableDefaultUI: true,
-          zoomControl: true,
-          fullscreenControl: true,
-          clickableIcons: false,
-          gestureHandling: 'greedy',
-        });
-        setIsReady(true);
-      } catch (error) {
-        if (!cancelled) {
-          setLoadError(
-            error instanceof Error
-              ? error.message
-              : 'The Google map could not be loaded.',
-          );
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !isReady) return;
-    let cancelled = false;
-
-    void (async () => {
-      const maps = await loadGoogleMaps();
-      const { AdvancedMarkerElement } = (await maps.maps.importLibrary(
-        'marker',
-      )) as google.maps.MarkerLibrary;
-
-      for (const marker of overlaysRef.current.markers) marker.map = null;
-      for (const line of overlaysRef.current.lines) line.setMap(null);
-      overlaysRef.current = { markers: [], lines: [] };
-
-      if (cancelled) return;
-
-      const bounds = new maps.maps.LatLngBounds();
-      const markers: google.maps.marker.AdvancedMarkerElement[] = [];
-      const lines: google.maps.Polyline[] = [];
-
-      for (const point of points) {
-        const marker = new AdvancedMarkerElement({
-          map,
-          position: { lat: point.lat, lng: point.lng },
-          title: `${point.participantName}: ${
-            point.kind === 'start' ? 'start' : 'end'
-          } — ${point.label}`,
-          content: markerElement(
-            point.kind,
-            point.kind === 'start' ? 'S' : 'E',
-          ),
-          zIndex: 5,
-        });
-        markers.push(marker);
-        bounds.extend({ lat: point.lat, lng: point.lng });
-
-        if (result) {
-          const line = new maps.maps.Polyline({
-            map,
-            path: [
-              { lat: point.lat, lng: point.lng },
-              { lat: result.lat, lng: result.lng },
-            ],
-            geodesic: true,
-            strokeColor: '#7b8090',
-            strokeOpacity: 0.34,
-            strokeWeight: 1.5,
-            clickable: false,
-          });
-          lines.push(line);
-        }
-      }
-
-      if (result) {
-        const resultMarker = new AdvancedMarkerElement({
-          map,
-          position: { lat: result.lat, lng: result.lng },
-          title: result.title,
-          content: markerElement('result', result.mode === 'rail' ? 'M' : '★'),
-          zIndex: 20,
-        });
-        markers.push(resultMarker);
-        bounds.extend({ lat: result.lat, lng: result.lng });
-
-        if (result.mode === 'rail') {
-          for (const alternative of result.alternatives.slice(1, 4)) {
-            const alternativeMarker = new AdvancedMarkerElement({
-              map,
-              position: { lat: alternative.lat, lng: alternative.lng },
-              title: `${alternative.name} ${alternative.network}`,
-              content: markerElement('alternative', 'M'),
-              zIndex: 2,
-            });
-            markers.push(alternativeMarker);
-            bounds.extend({ lat: alternative.lat, lng: alternative.lng });
-          }
-        }
-      }
-
-      overlaysRef.current = { markers, lines };
-
-      if (points.length === 0 && !result) {
-        map.setCenter(SINGAPORE_CENTER);
-        map.setZoom(11);
-      } else if (!bounds.isEmpty()) {
-        map.fitBounds(bounds, 68);
-        window.setTimeout(() => {
-          if ((map.getZoom() || 0) > 15) map.setZoom(15);
-        }, 120);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isReady, points, result]);
-
-  if (loadError) {
-    return (
-      <div className="map-fallback" role="img" aria-label="Map unavailable">
-        <div className="map-fallback-grid" />
-        <div className="map-fallback-shape" />
-        <div className="map-fallback-message">
-          <MapPinIcon />
-          <strong>Google map unavailable</strong>
-          <span>{loadError}</span>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="map-wrap">
-      <div
-        ref={containerRef}
-        className="map-canvas"
-        role="application"
-        aria-label="Google map of participant locations and meeting point"
-      />
-      {!isReady ? (
-        <div className="map-loading">
-          <span className="input-spinner" /> Loading map…
-        </div>
-      ) : null}
-      <MapLegend />
-    </div>
-  );
-}
-
-export function MapPanel(props: MapPanelProps) {
-  return getGoogleMapsApiKey() ? (
-    <GoogleMapPanel {...props} />
-  ) : (
-    <OpenStreetMapPanel {...props} />
   );
 }

@@ -3,9 +3,7 @@ WORKDIR /app
 
 # Vite variables are compiled into the browser bundle at build time.
 ARG VITE_GOOGLE_MAPS_API_KEY=""
-ARG VITE_GOOGLE_MAP_ID=""
 ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
-ENV VITE_GOOGLE_MAP_ID=$VITE_GOOGLE_MAP_ID
 
 COPY package*.json ./
 RUN npm ci

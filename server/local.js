@@ -16,5 +16,5 @@ if (existsSync(distDirectory)) {
 const port = Number(process.env.PORT || 8787);
 
 app.listen(port, () => {
-  console.log(`MeetMiddle API listening on http://localhost:${port}`);
+  console.log(`Meet Where Sia listening on http://localhost:${port}`);
 });

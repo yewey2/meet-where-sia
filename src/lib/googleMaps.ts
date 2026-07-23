@@ -10,10 +10,6 @@ export function getGoogleMapsApiKey(): string {
   return String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '').trim();
 }
 
-export function getGoogleMapId(): string {
-  return String(import.meta.env.VITE_GOOGLE_MAP_ID || '').trim() || 'DEMO_MAP_ID';
-}
-
 export function loadGoogleMaps(): Promise<typeof google> {
   if (window.google?.maps) return Promise.resolve(window.google);
   if (googleMapsPromise) return googleMapsPromise;
@@ -27,7 +23,7 @@ export function loadGoogleMaps(): Promise<typeof google> {
 
   googleMapsPromise = new Promise((resolve, reject) => {
     const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[data-meetmiddle-google-maps]',
+      'script[data-meet-where-google-maps]',
     );
 
     const onReady = () => {
@@ -49,7 +45,7 @@ export function loadGoogleMaps(): Promise<typeof google> {
     }
 
     const script = document.createElement('script');
-    script.dataset.meetmiddleGoogleMaps = 'true';
+    script.dataset.meetWhereGoogleMaps = 'true';
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
       apiKey,
     )}&v=weekly&loading=async&auth_referrer_policy=origin`;

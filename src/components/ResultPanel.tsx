@@ -1,5 +1,6 @@
 import type {
   MeetingResult,
+  RailJourneyEstimate,
   TrainAlertPayload,
 } from '../types';
 import {
@@ -12,9 +13,7 @@ import {
 interface ResultPanelProps {
   result: MeetingResult | null;
   isCalculating: boolean;
-  participantCount: number;
   trainAlerts: TrainAlertPayload | null;
-  stationCount: number;
 }
 
 function formatKm(value: number): string {
@@ -32,22 +31,13 @@ function formatMinutes(value: number): string {
 }
 
 function TrainStatus({ alerts }: { alerts: TrainAlertPayload | null }) {
-  if (!alerts) return null;
-
-  if (alerts.status === 'not-configured') {
-    return (
-      <div className="train-status train-status-neutral">
-        <span className="status-indicator" />
-        LTA live alerts are optional and not configured
-      </div>
-    );
-  }
+  if (!alerts || alerts.status === 'not-configured') return null;
 
   if (alerts.status === 'unavailable') {
     return (
       <div className="train-status train-status-warning">
         <span className="status-indicator" />
-        LTA train status could not be checked
+        Live train status is temporarily unavailable
       </div>
     );
   }
@@ -73,22 +63,35 @@ function TrainStatus({ alerts }: { alerts: TrainAlertPayload | null }) {
   );
 }
 
+function longestJourneyPerParticipant(
+  journeys: RailJourneyEstimate[],
+): RailJourneyEstimate[] {
+  const longest = new Map<string, RailJourneyEstimate>();
+  for (const journey of journeys) {
+    const current = longest.get(journey.participantId);
+    if (!current || journey.totalMinutes > current.totalMinutes) {
+      longest.set(journey.participantId, journey);
+    }
+  }
+  return [...longest.values()].sort(
+    (a, b) => b.totalMinutes - a.totalMinutes,
+  );
+}
+
 export function ResultPanel({
   result,
   isCalculating,
-  participantCount,
   trainAlerts,
-  stationCount,
 }: ResultPanelProps) {
   if (isCalculating) {
     return (
       <section className="result-card result-loading" aria-live="polite">
-        <div className="result-loader-orbit">
+        <div className="result-loader-orbit" aria-hidden="true">
           <span />
           <i />
         </div>
         <strong>Finding the fairest meeting point</strong>
-        <p>Resolving locations, comparing distances, and preparing the map.</p>
+        <p>Resolving locations, comparing journeys and updating the map.</p>
       </section>
     );
   }
@@ -96,21 +99,14 @@ export function ResultPanel({
   if (!result) {
     return (
       <section className="result-card result-empty">
-        <div className="empty-result-icon">
+        <div className="empty-result-icon" aria-hidden="true">
           <SparkIcon />
         </div>
         <h2>Your result will appear here</h2>
         <p>
-          Add each person’s start and end point, then calculate a geometric
-          median or the best MRT/LRT station.
+          Add everyone’s location, then find the fairest MRT/LRT station or
+          distance centre for the group.
         </p>
-        <div className="empty-result-stats">
-          <span><strong>{participantCount}</strong> people</span>
-          <span><strong>{participantCount * 2}</strong> possible endpoints</span>
-          {stationCount > 0 ? (
-            <span><strong>{stationCount}</strong> rail stations loaded</span>
-          ) : null}
-        </div>
       </section>
     );
   }
@@ -123,7 +119,7 @@ export function ResultPanel({
     <section className="result-card result-complete" aria-live="polite">
       <div className="result-kicker">
         {result.mode === 'rail' ? <RailIcon /> : <SparkIcon />}
-        {result.mode === 'rail' ? 'Best rail meeting point' : 'Minimum-distance center'}
+        {result.mode === 'rail' ? 'Best rail meeting point' : 'Fairest distance centre'}
       </div>
 
       <div className="result-title-row">
@@ -155,7 +151,7 @@ export function ResultPanel({
           </strong>
         </div>
         <div className="metric-card">
-          <span>{result.mode === 'rail' ? 'Average estimated journey' : 'Farthest endpoint'}</span>
+          <span>{result.mode === 'rail' ? 'Group average' : 'Farthest endpoint'}</span>
           <strong>
             {result.mode === 'rail'
               ? formatMinutes(result.averageMinutes)
@@ -163,7 +159,7 @@ export function ResultPanel({
           </strong>
         </div>
         <div className="metric-card">
-          <span>{result.mode === 'rail' ? 'Total group journey' : 'Total group distance'}</span>
+          <span>{result.mode === 'rail' ? 'Combined journey time' : 'Combined distance'}</span>
           <strong>
             {result.mode === 'rail'
               ? formatMinutes(result.totalMinutes)
@@ -176,24 +172,22 @@ export function ResultPanel({
         <>
           <TrainStatus alerts={trainAlerts} />
           <div className="method-note rail-method-note">
-            Compared all {result.candidateCount} connected stations. Ranked by
-            the shortest longest-endpoint journey, then the lowest group average.
-            Times are local graph estimates including access walking, average
-            waits, train segments, and 4-minute interchange walks—not official
-            timetables.
+            Compared all {result.candidateCount} connected stations for fairness,
+            then used the group average as a tie-breaker. Times include estimated
+            walking, waiting, train travel and transfers; confirm your trip before
+            leaving.
           </div>
           <div className="journey-summary">
-            <div className="section-label">Longest endpoint journeys</div>
-            {result.station.journeys
-              .slice()
-              .sort((a, b) => b.totalMinutes - a.totalMinutes)
-              .slice(0, 3)
+            <div className="section-label">Longest journey by person</div>
+            {longestJourneyPerParticipant(result.station.journeys)
+              .slice(0, 4)
               .map((journey) => (
                 <div className="journey-row" key={journey.endpointId}>
                   <span>
-                    <strong>{journey.endpointLabel}</strong>
-                    <small>
-                      via {journey.originStationName}
+                    <strong>{journey.participantName}</strong>
+                    <small title={journey.endpointLabel}>
+                      {journey.endpointKind === 'start' ? 'Start' : 'End'}: {journey.endpointLabel}
+                      {' · '}via {journey.originStationName}
                       {journey.transfers
                         ? ` · ${journey.transfers} transfer${journey.transfers === 1 ? '' : 's'}`
                         : ' · direct'}
@@ -213,10 +207,9 @@ export function ResultPanel({
                     <span className="alternative-name">
                       <strong>{station.name}</strong>
                       <small>
-                        {station.lineCodes.join('/')} · longest{' '}
-                        {formatMinutes(station.maxMinutes)} · avg.{' '}
+                        {station.lineCodes.join('/')} · avg.{' '}
                         {formatMinutes(station.averageMinutes)} ·{' '}
-                        {formatKm(station.centroidKm)} from center
+                        {formatKm(station.centroidKm)} from centre
                       </small>
                     </span>
                     <span>{formatMinutes(station.maxMinutes)} max</span>
@@ -228,8 +221,8 @@ export function ResultPanel({
         </>
       ) : (
         <div className="method-note">
-          This is the geometric median: the coordinate that approximately
-          minimizes the combined straight-line distance to every start and end.
+          This is the geometric median: the point that approximately minimizes
+          the combined straight-line distance to every location.
         </div>
       )}
 

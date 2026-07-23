@@ -403,6 +403,9 @@ export function rankStationsByTravelTime(
         journeys.push({
           endpointId: endpoint.point.id,
           endpointLabel: endpoint.point.label,
+          endpointKind: endpoint.point.kind,
+          participantId: endpoint.point.participantId,
+          participantName: endpoint.point.participantName,
           originStationId: endpoint.origin.id,
           originStationName: endpoint.origin.name,
           accessWalkMinutes: endpoint.accessWalkMinutes,
