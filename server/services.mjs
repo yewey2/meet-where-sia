@@ -1,3 +1,5 @@
+import { OPERATIONAL_STATION_FALLBACKS } from './stationFallbacks.mjs';
+
 const STATION_DATASET_ID = 'd_b39d3a0871985372d7e1637193335da5';
 const STATION_POLL_URL = `https://api-open.data.gov.sg/v1/public/api/datasets/${STATION_DATASET_ID}/poll-download`;
 const LTA_ALERTS_URL =
@@ -103,6 +105,20 @@ function aggregateStationExits(geojson) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function supplementOperationalStations(stations) {
+  const stationIds = new Set(stations.map((station) => station.id));
+  const supplements = OPERATIONAL_STATION_FALLBACKS.filter(
+    (station) => !stationIds.has(station.id),
+  );
+
+  return {
+    stations: [...stations, ...supplements].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    ),
+    supplements,
+  };
+}
+
 export function getHealthPayload() {
   return {
     ok: true,
@@ -134,7 +150,8 @@ export async function loadStations() {
     20_000,
   );
   const geojson = await datasetResponse.json();
-  const stations = aggregateStationExits(geojson);
+  const stationData = supplementOperationalStations(aggregateStationExits(geojson));
+  const { stations } = stationData;
 
   if (stations.length < 20) {
     throw new Error('The station dataset contained too few valid stations.');
@@ -142,7 +159,11 @@ export async function loadStations() {
 
   const payload = {
     stations,
-    source: 'LTA MRT Station Exit (GEOJSON) via data.gov.sg',
+    source:
+      stationData.supplements.length > 0
+        ? 'LTA MRT Station Exit (GEOJSON) via data.gov.sg, supplemented with official Singapore OneMap station centres'
+        : 'LTA MRT Station Exit (GEOJSON) via data.gov.sg',
+    supplementedStations: stationData.supplements.map((station) => station.name),
     updatedAt: geojson?.metadata?.lastUpdatedAt,
     cachedAt: new Date().toISOString(),
   };

@@ -3,6 +3,7 @@ import type { MrtStation, TrainAlertPayload } from '../types';
 interface StationResponse {
   stations: MrtStation[];
   source: string;
+  supplementedStations?: string[];
   updatedAt?: string;
   cachedAt: string;
 }

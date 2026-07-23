@@ -14,7 +14,7 @@ A Singapore-focused group meeting-point planner. Each participant supplies a sta
 - Add or remove any number of participants in one organizer-controlled plan.
 - Each participant has a name, start, end, and **End at the same place** option, selected by default.
 - Every connected MRT/LRT station is evaluated; no straight-line radius pre-filter is applied to rail journeys.
-- Local Singapore rail graph covering the current MRT/LRT passenger network, including CCL6.
+- Local Singapore rail graph covering the current MRT/LRT passenger network, including Hume and CCL6.
 - Estimated access walking, train segments, waits, interchange walking, and transfer waits.
 - Exact MRT/LRT station names and Singapore latitude/longitude coordinates work without Google.
 - Google place suggestions are restricted to Singapore and every typed query is searched with `, Singapore` appended once.
@@ -40,7 +40,7 @@ Every participant contributes two endpoint observations. When **End at the same 
 
 ### MRT/LRT travel time (default)
 
-The server downloads the official LTA station-exit GeoJSON from data.gov.sg, groups exits by station name, and averages each station's exit coordinates. The client evaluates every connected station and runs shortest-path searches over a local MRT/LRT graph.
+The server downloads the official LTA station-exit GeoJSON from data.gov.sg, groups exits by station name, and averages each station's exit coordinates. Because that dataset can lag newly opened stations, currently operational stations absent from it are supplemented with official station-centre coordinates from Singapore OneMap. A fallback is automatically ignored once LTA's station-exit feed supplies that station. The client evaluates every connected station and runs shortest-path searches over a local MRT/LRT graph.
 
 Each endpoint is attached to its nearest connected station. A journey estimate includes straight-line access distance adjusted for a walking path, average initial wait, distance-based train segments, and an interchange cost containing both walking and another average wait. Candidate stations are sorted by:
 
@@ -254,4 +254,8 @@ The UI already separates participant records from the calculation logic, so a sh
 - [LTA static datasets](https://datamall.lta.gov.sg/content/datamall/en/static-data.html)
 - [LTA MRT Station Exit GeoJSON on data.gov.sg](https://data.gov.sg/datasets/d_b39d3a0871985372d7e1637193335da5/view)
 - [LTA current rail network](https://www.lta.gov.sg/content/ltagov/en/getting_around/public_transport/rail_network.html)
+- [OneMap Search API](https://www.onemap.gov.sg/apidocs/search)
 - [OneMap public-transport routing API](https://www.onemap.gov.sg/apidocs/routing)
+- [LTA Circle Line 6](https://www.lta.gov.sg/content/ltagov/en/upcoming_projects/rail_expansion/circle_line_6.html)
+- [LTA Hume station opening](https://www.lta.gov.sg/content/ltagov/en/newsroom/2025/1/news-releases/hume_station_to_open.html)
+- [LTA Punggol Coast station opening](https://www.lta.gov.sg/content/ltagov/en/newsroom/2024/12/news-releases/punggol_coast_station_welcomes_commuters.html)

@@ -110,7 +110,7 @@ const RAIL_LINES: RailLine[] = [
     code: 'DT',
     network: 'MRT',
     stations: [
-      'Bukit Panjang', 'Cashew', 'Hillview', 'Beauty World',
+      'Bukit Panjang', 'Cashew', 'Hillview', 'Hume', 'Beauty World',
       'King Albert Park', 'Sixth Avenue', 'Tan Kah Kee', 'Botanic Gardens',
       'Stevens', 'Newton', 'Little India', 'Rochor', 'Bugis', 'Promenade',
       'Bayfront', 'Downtown', 'Telok Ayer', 'Chinatown', 'Fort Canning',
@@ -228,9 +228,14 @@ function buildRailGraph(stations: MrtStation[]): RailGraph {
   );
   const adjacency = new Map<string, GraphEdge[]>();
   const lineCodesByStation = new Map<string, string[]>();
+  const missingTopologyStations = new Set<string>();
 
   for (const line of RAIL_LINES) {
-    const resolved = line.stations.map((name) => byName.get(normalizeStationName(name)));
+    const resolved = line.stations.map((name) => {
+      const station = byName.get(normalizeStationName(name));
+      if (!station) missingTopologyStations.add(name);
+      return station;
+    });
     for (const station of resolved) {
       if (!station) continue;
       const codes = lineCodesByStation.get(station.id) || [];
@@ -250,6 +255,12 @@ function buildRailGraph(stations: MrtStation[]): RailGraph {
       addEdge(adjacency, currentKey, { to: nextKey, minutes, kind: 'ride' });
       addEdge(adjacency, nextKey, { to: currentKey, minutes, kind: 'ride' });
     }
+  }
+
+  if (missingTopologyStations.size > 0) {
+    throw new Error(
+      `Rail graph is missing station data for: ${[...missingTopologyStations].join(', ')}.`,
+    );
   }
 
   for (const [stationId, lineCodes] of lineCodesByStation) {
