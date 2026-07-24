@@ -1,15 +1,32 @@
 import { OPERATIONAL_STATION_FALLBACKS } from './stationFallbacks.mjs';
 
 const STATION_DATASET_ID = 'd_b39d3a0871985372d7e1637193335da5';
+const HAWKER_DATASET_ID = 'd_4a086da0a5553be1d89383cd90d07ecd';
+const ATTRACTION_DATASET_ID = 'd_0f2f47515425404e6c9d2a040dd87354';
 const STATION_POLL_URL = `https://api-open.data.gov.sg/v1/public/api/datasets/${STATION_DATASET_ID}/poll-download`;
 const LTA_ALERTS_URL =
   'https://datamall2.mytransport.sg/ltaodataservice/TrainServiceAlerts';
 
 const STATION_CACHE_MS = 12 * 60 * 60 * 1000;
+const NEARBY_CACHE_MS = 12 * 60 * 60 * 1000;
 const ALERT_CACHE_MS = 60 * 1000;
 
 let stationCache;
+let nearbyCache;
 let alertCache;
+
+const NEARBY_SOURCES = [
+  {
+    id: 'NEA',
+    label: 'NEA hawker centres',
+    url: `https://data.gov.sg/datasets/${HAWKER_DATASET_ID}/view`,
+  },
+  {
+    id: 'STB',
+    label: 'STB tourist attractions',
+    url: `https://data.gov.sg/datasets/${ATTRACTION_DATASET_ID}/view`,
+  },
+];
 
 function titleCaseStation(value) {
   const smallWords = new Set(['by', 'the', 'of', 'and']);
@@ -50,6 +67,203 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12_000) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function loadOpenDataset(datasetId) {
+  const pollUrl = `https://api-open.data.gov.sg/v1/public/api/datasets/${datasetId}/poll-download`;
+  const catalogueResponse = await fetchWithTimeout(pollUrl, {
+    headers: { accept: 'application/json' },
+  });
+  const catalogue = await catalogueResponse.json();
+
+  if (catalogue?.code !== 0 || !catalogue?.data?.url) {
+    throw new Error(
+      catalogue?.errMsg || `The ${datasetId} dataset URL was unavailable.`,
+    );
+  }
+
+  const datasetResponse = await fetchWithTimeout(
+    catalogue.data.url,
+    { headers: { accept: 'application/geo+json, application/json' } },
+    20_000,
+  );
+  return datasetResponse.json();
+}
+
+function isValidPoint(coordinates) {
+  return (
+    Array.isArray(coordinates) &&
+    coordinates.length >= 2 &&
+    Number.isFinite(Number(coordinates[0])) &&
+    Number.isFinite(Number(coordinates[1]))
+  );
+}
+
+function compactText(value, maxLength = 150) {
+  if (typeof value !== 'string') return undefined;
+  const text = value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!text) return undefined;
+  return text.length > maxLength
+    ? `${text.slice(0, maxLength - 1).trimEnd()}…`
+    : text;
+}
+
+function attractionCategory(properties) {
+  const text = [
+    properties?.PAGETITLE,
+    properties?.OVERVIEW,
+    properties?.META_DESCRIPTION,
+  ]
+    .filter((value) => typeof value === 'string')
+    .join(' ');
+
+  return /\b(park|garden|nature|trail|reservoir|beach|wetland|island)\b/i.test(
+    text,
+  )
+    ? 'outdoors'
+    : 'activity';
+}
+
+function normaliseNearbyPlaces(hawkerGeojson, attractionGeojson) {
+  const places = [];
+
+  for (const feature of Array.isArray(hawkerGeojson?.features)
+    ? hawkerGeojson.features
+    : []) {
+    const coordinates = feature?.geometry?.coordinates;
+    const properties = feature?.properties;
+    if (
+      feature?.geometry?.type !== 'Point' ||
+      !isValidPoint(coordinates) ||
+      typeof properties?.NAME !== 'string' ||
+      (properties?.STATUS && !/existing/i.test(String(properties.STATUS)))
+    ) {
+      continue;
+    }
+
+    const cookedFoodStalls = Number(properties.NUMBER_OF_COOKED_FOOD_STALLS);
+    places.push({
+      id: `nea-hawker-${properties.OBJECTID ?? stationId(properties.NAME)}`,
+      name: compactText(properties.NAME, 100),
+      category: 'food',
+      lat: Number(coordinates[1]),
+      lng: Number(coordinates[0]),
+      address: compactText(properties.ADDRESS_MYENV, 130),
+      detail:
+        Number.isFinite(cookedFoodStalls) && cookedFoodStalls > 0
+          ? `${cookedFoodStalls} cooked-food stalls`
+          : undefined,
+      source: 'NEA',
+    });
+  }
+
+  for (const feature of Array.isArray(attractionGeojson?.features)
+    ? attractionGeojson.features
+    : []) {
+    const coordinates = feature?.geometry?.coordinates;
+    const properties = feature?.properties;
+    if (
+      feature?.geometry?.type !== 'Point' ||
+      !isValidPoint(coordinates) ||
+      typeof properties?.PAGETITLE !== 'string'
+    ) {
+      continue;
+    }
+
+    places.push({
+      id: `stb-attraction-${properties.OBJECTID_1 ?? stationId(properties.PAGETITLE)}`,
+      name: compactText(properties.PAGETITLE, 100),
+      category: attractionCategory(properties),
+      lat: Number(coordinates[1]),
+      lng: Number(coordinates[0]),
+      address: compactText(properties.ADDRESS, 130),
+      detail: compactText(
+        properties.META_DESCRIPTION || properties.OVERVIEW,
+        135,
+      ),
+      source: 'STB',
+    });
+  }
+
+  return places.filter((place) => place.name);
+}
+
+function haversineKm(latA, lngA, latB, lngB) {
+  const earthRadiusKm = 6371.0088;
+  const radians = (degrees) => (degrees * Math.PI) / 180;
+  const deltaLat = radians(latB - latA);
+  const deltaLng = radians(lngB - lngA);
+  const value =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(radians(latA)) *
+      Math.cos(radians(latB)) *
+      Math.sin(deltaLng / 2) ** 2;
+  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+}
+
+async function loadNearbyDataset() {
+  if (nearbyCache && Date.now() - nearbyCache.cachedAtMs < NEARBY_CACHE_MS) {
+    return nearbyCache;
+  }
+
+  const [hawkerResult, attractionResult] = await Promise.allSettled([
+    loadOpenDataset(HAWKER_DATASET_ID),
+    loadOpenDataset(ATTRACTION_DATASET_ID),
+  ]);
+  const loadedSources = [];
+  let hawkerGeojson;
+  let attractionGeojson;
+
+  if (hawkerResult.status === 'fulfilled') {
+    hawkerGeojson = hawkerResult.value;
+    loadedSources.push(NEARBY_SOURCES[0]);
+  }
+  if (attractionResult.status === 'fulfilled') {
+    attractionGeojson = attractionResult.value;
+    loadedSources.push(NEARBY_SOURCES[1]);
+  }
+  if (!loadedSources.length) {
+    throw new Error('Official nearby-place datasets are temporarily unavailable.');
+  }
+
+  nearbyCache = {
+    cachedAtMs: Date.now(),
+    cachedAt: new Date().toISOString(),
+    places: normaliseNearbyPlaces(hawkerGeojson, attractionGeojson),
+    sources: loadedSources,
+  };
+  return nearbyCache;
+}
+
+export async function loadNearbyPlaces(lat, lng, radiusKm = 1.5) {
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < 1.1 ||
+    lat > 1.5 ||
+    lng < 103.55 ||
+    lng > 104.15 ||
+    !Number.isFinite(radiusKm)
+  ) {
+    throw new RangeError('Enter valid nearby-search parameters within Singapore.');
+  }
+
+  const safeRadiusKm = Math.min(3, Math.max(0.5, radiusKm));
+  const dataset = await loadNearbyDataset();
+  const places = dataset.places
+    .map((place) => ({
+      ...place,
+      distanceKm: haversineKm(lat, lng, place.lat, place.lng),
+    }))
+    .filter((place) => place.distanceKm <= safeRadiusKm)
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+
+  return {
+    places,
+    radiusKm: safeRadiusKm,
+    sources: dataset.sources,
+    cachedAt: dataset.cachedAt,
+  };
 }
 
 function aggregateStationExits(geojson) {

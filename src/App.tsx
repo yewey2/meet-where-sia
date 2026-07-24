@@ -319,17 +319,17 @@ export default function App() {
     setParticipants([
       {
         id: createId('person'),
-        name: 'John Doe',
+        name: 'Aisha',
         sameAsStart: true,
-        start: emptyLocation('Senja LRT'),
-        end: emptyLocation('Senja LRT'),
+        start: emptyLocation('Aljunied MRT'),
+        end: emptyLocation('Aljunied MRT'),
       },
       {
         id: createId('person'),
-        name: 'Aisha Tan',
-        sameAsStart: false,
-        start: emptyLocation('Orchard MRT'),
-        end: emptyLocation('Paya Lebar MRT'),
+        name: 'Ben',
+        sameAsStart: true,
+        start: emptyLocation('Eunos MRT'),
+        end: emptyLocation('Eunos MRT'),
       },
     ]);
     setMode('rail');

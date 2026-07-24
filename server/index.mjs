@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getHealthPayload,
+  loadNearbyPlaces,
   loadStations,
   loadTrainAlerts,
 } from './services.mjs';
@@ -28,6 +29,28 @@ app.get('/api/mrt-stations', async (_request, response) => {
         error instanceof Error
           ? error.message
           : 'Could not load the official LTA station dataset.',
+    });
+  }
+});
+
+app.get('/api/nearby', async (request, response) => {
+  const lat = Number(request.query.lat);
+  const lng = Number(request.query.lng);
+  const radiusKm = Number(request.query.radiusKm || 1.5);
+
+  try {
+    response.set(
+      'Cache-Control',
+      'public, s-maxage=3600, stale-while-revalidate=86400',
+    );
+    response.json(await loadNearbyPlaces(lat, lng, radiusKm));
+  } catch (error) {
+    const invalidRequest = error instanceof RangeError;
+    response.status(invalidRequest ? 400 : 502).json({
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Could not load nearby places.',
     });
   }
 });

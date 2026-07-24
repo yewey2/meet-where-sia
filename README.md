@@ -24,6 +24,10 @@ A Singapore-focused group meeting-point planner. Each participant supplies a sta
 - A Leaflet map using the official Google Maps Map Tiles API when configured, including Google Maps and viewport data attribution in the bottom-right control.
 - Automatic OpenStreetMap fallback when no Google key is configured or Google tiles are unavailable.
 - Rail results show average, longest, and total estimated journey time plus alternatives and journey breakdowns.
+- Rail results include a keyless **Explore nearby** section for food, coffee,
+  activities, and outdoors. Official NEA hawker centres and STB attractions are
+  distance-sorted in the app; category searches hand off to current Google Maps
+  results without requiring a Google API key.
 - Official LTA station-exit coordinates are aggregated into one point per MRT/LRT station.
 - Optional LTA DataMall train-service status check through the server API.
 - Browser-only plan persistence with `localStorage`.
@@ -154,10 +158,11 @@ npm run check
 
 Import this repository into Vercel and leave the detected framework as **Vite**. The checked-in `vercel.json` selects Singapore (`sin1`) for the API functions, while Vercel builds the frontend into `dist` using `npm run build`.
 
-The three API URLs have explicit files under `api/`, so Vercel deploys each URL as its own function:
+The four API URLs have explicit files under `api/`, so Vercel deploys each URL as its own function:
 
 - `api/health.js` → `/api/health`
 - `api/mrt-stations.js` → `/api/mrt-stations`
+- `api/nearby.js` → `/api/nearby`
 - `api/lta/train-alerts.js` → `/api/lta/train-alerts`
 
 No environment variables are required for a working station-name/coordinate-only deployment. Add these in **Project Settings → Environment Variables** only for the corresponding optional features:
@@ -185,10 +190,13 @@ docker run --rm -p 8787:8787 \
 
 Use the built-in **Load example** action to populate:
 
-- John Doe: `Senja LRT` → same place.
-- Aisha Tan: `Orchard MRT` → `Paya Lebar MRT`.
+- Aisha: `Aljunied MRT` → same place.
+- Ben: `Eunos MRT` → same place.
 
-The example works without Google. Select official station suggestions or press calculate and let exact station names resolve against the downloaded LTA station list.
+The example works without Google and recommends `Paya Lebar MRT`, making it a
+quick acceptance test for both the rail ranking and nearby-place list. Select
+official station suggestions or press calculate and let exact station names
+resolve against the downloaded LTA station list.
 
 ## API routes
 
@@ -196,9 +204,12 @@ The example works without Google. Select official station suggestions or press c
 |---|---|
 | `GET /api/health` | Reports server status and whether the two keys are configured. |
 | `GET /api/mrt-stations` | Downloads, aggregates, and caches official LTA MRT/LRT station-exit data. |
+| `GET /api/nearby?lat=…&lng=…&radiusKm=…` | Returns nearby official NEA hawker centres and STB attractions, sorted by straight-line distance. |
 | `GET /api/lta/train-alerts` | Calls LTA DataMall with the server-side `AccountKey`; returns a safe normalized status. |
 
-The station list is cached in memory for 12 hours. LTA service alerts are cached for 60 seconds.
+The station and nearby-place datasets are cached in memory for 12 hours. LTA
+service alerts are cached for 60 seconds. The nearby radius is clamped between
+0.5 km and 3 km; the interface currently uses 1.5 km.
 
 ## Project structure
 
@@ -207,6 +218,7 @@ meet-where/
 ├── api/                       # URL-matched Vercel function handlers
 │   ├── lta/train-alerts.js
 │   ├── health.js
+│   ├── nearby.js
 │   └── mrt-stations.js
 ├── server/
 │   ├── index.mjs              # Express routes for local/Docker use
@@ -261,3 +273,6 @@ The UI already separates participant records from the calculation logic, so a sh
 - [LTA Circle Line 6](https://www.lta.gov.sg/content/ltagov/en/upcoming_projects/rail_expansion/circle_line_6.html)
 - [LTA Hume station opening](https://www.lta.gov.sg/content/ltagov/en/newsroom/2025/1/news-releases/hume_station_to_open.html)
 - [LTA Punggol Coast station opening](https://www.lta.gov.sg/content/ltagov/en/newsroom/2024/12/news-releases/punggol_coast_station_welcomes_commuters.html)
+- [NEA Hawker Centres GeoJSON](https://data.gov.sg/datasets/d_4a086da0a5553be1d89383cd90d07ecd/view)
+- [STB Tourist Attractions GeoJSON](https://data.gov.sg/datasets/d_0f2f47515425404e6c9d2a040dd87354/view)
+- [Google Maps URLs](https://developers.google.com/maps/documentation/urls/get-started)

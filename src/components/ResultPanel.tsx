@@ -9,6 +9,7 @@ import {
   RailIcon,
   SparkIcon,
 } from './Icons';
+import { NearbyDiscovery } from './NearbyDiscovery';
 
 interface ResultPanelProps {
   result: MeetingResult | null;
@@ -188,6 +189,8 @@ export function ResultPanel({
           </div>
         </div>
       ) : null}
+
+      {result.mode === 'rail' ? <NearbyDiscovery result={result} /> : null}
 
       <div className="metric-grid">
         <div className="metric-card">

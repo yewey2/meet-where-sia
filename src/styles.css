@@ -1353,6 +1353,250 @@ svg {
   font-size: 10px;
 }
 
+.nearby-discovery {
+  position: relative;
+  margin-top: 18px;
+  padding: 17px;
+  border: 1px solid #dedaf9;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #fbfaff, #f6f8ff);
+}
+
+.nearby-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nearby-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.nearby-kicker svg {
+  width: 13px;
+  height: 13px;
+}
+
+.nearby-header h3 {
+  margin: 5px 0 0;
+  color: var(--ink);
+  font-size: 17px;
+  letter-spacing: -0.025em;
+}
+
+.nearby-radius {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: #5f6270;
+  background: #ececf3;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.nearby-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 14px;
+  padding: 4px;
+  border: 1px solid #e2e1ea;
+  border-radius: 11px;
+  background: rgb(255 255 255 / 76%);
+}
+
+.nearby-tabs button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 5px;
+  border: 0;
+  border-radius: 8px;
+  color: #686b77;
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.nearby-tabs button:hover {
+  color: var(--accent-dark);
+  background: #f1efff;
+}
+
+.nearby-tabs button.is-selected {
+  color: white;
+  background: var(--accent);
+  box-shadow: 0 4px 12px rgb(91 71 231 / 20%);
+}
+
+.nearby-tab-panel {
+  margin-top: 10px;
+}
+
+.nearby-place-list {
+  overflow: hidden;
+  border: 1px solid #e3e3e9;
+  border-radius: 11px;
+  background: white;
+}
+
+.nearby-place {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 68px;
+  padding: 9px 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.nearby-place + .nearby-place {
+  border-top: 1px solid #ececf0;
+}
+
+.nearby-place:hover {
+  background: #faf9ff;
+}
+
+.nearby-place-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+}
+
+.nearby-place-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.nearby-place-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.nearby-place-copy strong,
+.nearby-place-copy span,
+.nearby-place-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nearby-place-copy strong {
+  color: #363944;
+  font-size: 11px;
+}
+
+.nearby-place-copy span {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.nearby-place-copy small {
+  color: var(--soft-muted);
+  font-size: 9px;
+}
+
+.nearby-place-distance {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.nearby-place-distance svg {
+  width: 12px;
+  height: 12px;
+}
+
+.nearby-empty,
+.nearby-loading {
+  display: grid;
+  place-items: center;
+  min-height: 98px;
+  padding: 16px;
+  border: 1px dashed #d8d6e6;
+  border-radius: 11px;
+  color: var(--muted);
+  background: rgb(255 255 255 / 60%);
+  text-align: center;
+  font-size: 10px;
+}
+
+.nearby-empty {
+  gap: 4px;
+}
+
+.nearby-empty strong {
+  color: #555966;
+  font-size: 11px;
+}
+
+.nearby-loading {
+  display: flex;
+  gap: 8px;
+}
+
+.nearby-loading .button-spinner {
+  width: 14px;
+  height: 14px;
+  border-color: #c9c4f5;
+  border-top-color: var(--accent);
+}
+
+.nearby-search-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 39px;
+  margin-top: 9px;
+  border-radius: 10px;
+  color: white;
+  background: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+}
+
+.nearby-search-button:hover {
+  background: var(--accent-dark);
+}
+
+.nearby-search-button svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+}
+
+.nearby-source-note {
+  margin: 9px 1px 0;
+  color: #777b87;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.nearby-source-note a {
+  color: #6660a6;
+}
+
 .method-note {
   margin-top: 15px;
   padding: 11px 12px;
@@ -1611,6 +1855,36 @@ svg {
     color: var(--accent-dark);
     font-size: 10px;
     font-weight: 700;
+  }
+
+  .nearby-discovery {
+    margin-inline: -2px;
+    padding: 14px 12px;
+  }
+
+  .nearby-header {
+    display: grid;
+  }
+
+  .nearby-radius {
+    justify-self: start;
+  }
+
+  .nearby-tabs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .nearby-tabs button {
+    min-height: 38px;
+  }
+
+  .nearby-place {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .nearby-place-distance {
+    grid-column: 2;
+    justify-self: start;
   }
 
 }

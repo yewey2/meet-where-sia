@@ -1,4 +1,8 @@
-import type { MrtStation, TrainAlertPayload } from '../types';
+import type {
+  MrtStation,
+  NearbyPlacesPayload,
+  TrainAlertPayload,
+} from '../types';
 
 interface StationResponse {
   stations: MrtStation[];
@@ -40,4 +44,19 @@ export async function fetchTrainAlerts(
 ): Promise<TrainAlertPayload> {
   const response = await fetch('/api/lta/train-alerts', { signal });
   return parseJsonResponse<TrainAlertPayload>(response);
+}
+
+export async function fetchNearbyPlaces(
+  lat: number,
+  lng: number,
+  radiusKm = 1.5,
+  signal?: AbortSignal,
+): Promise<NearbyPlacesPayload> {
+  const query = new URLSearchParams({
+    lat: String(lat),
+    lng: String(lng),
+    radiusKm: String(radiusKm),
+  });
+  const response = await fetch(`/api/nearby?${query}`, { signal });
+  return parseJsonResponse<NearbyPlacesPayload>(response);
 }

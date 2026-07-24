@@ -125,3 +125,26 @@ export interface TrainAlertPayload {
   checkedAt?: string;
   error?: string;
 }
+
+export type NearbyCategory = 'food' | 'cafe' | 'activity' | 'outdoors';
+
+export interface NearbyPlace extends Coordinate {
+  id: string;
+  name: string;
+  category: NearbyCategory;
+  distanceKm: number;
+  address?: string;
+  detail?: string;
+  source: 'NEA' | 'STB';
+}
+
+export interface NearbyPlacesPayload {
+  places: NearbyPlace[];
+  radiusKm: number;
+  sources: Array<{
+    id: 'NEA' | 'STB';
+    label: string;
+    url: string;
+  }>;
+  cachedAt: string;
+}

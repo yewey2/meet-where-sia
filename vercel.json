@@ -9,6 +9,9 @@
     "api/mrt-stations.js": {
       "maxDuration": 30
     },
+    "api/nearby.js": {
+      "maxDuration": 30
+    },
     "api/lta/train-alerts.js": {
       "maxDuration": 15
     }
