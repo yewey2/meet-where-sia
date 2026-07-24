@@ -790,6 +790,10 @@ svg {
   border-top-color: white;
 }
 
+.jump-to-result {
+  display: none;
+}
+
 .planner-footnote {
   display: flex;
   align-items: center;
@@ -827,10 +831,14 @@ svg {
   gap: 16px;
 }
 
+#meeting-result {
+  scroll-margin-top: 18px;
+}
+
 .map-wrap,
 .map-fallback {
   position: relative;
-  min-height: 500px;
+  min-height: 380px;
   overflow: hidden;
   border: 1px solid #dfe0e5;
   border-radius: 22px;
@@ -1289,6 +1297,11 @@ svg {
   margin-top: 17px;
 }
 
+.alternatives-primary {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
 .alternatives-block .section-label {
   margin-bottom: 7px;
 }
@@ -1439,7 +1452,7 @@ svg {
 
   .map-wrap,
   .map-fallback {
-    min-height: 450px;
+    min-height: 360px;
   }
 
   .metric-grid {
@@ -1472,9 +1485,29 @@ svg {
     grid-row: 2;
   }
 
+  .jump-to-result {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    margin-top: 10px;
+    border: 1px solid #d9d5fa;
+    border-radius: 11px;
+    color: var(--accent-dark);
+    background: #f8f7ff;
+    font-size: 12px;
+    font-weight: 800;
+    text-decoration: none;
+  }
+
+  .jump-to-result:hover {
+    background: var(--accent-soft);
+  }
+
   .map-wrap,
   .map-fallback {
-    min-height: 420px;
+    min-height: 320px;
   }
 
   .result-card {
@@ -1541,7 +1574,7 @@ svg {
 
   .map-wrap,
   .map-fallback {
-    min-height: 340px;
+    min-height: 280px;
     border-radius: 18px;
   }
 
@@ -1567,6 +1600,17 @@ svg {
 
   .result-title-row h2 {
     font-size: 23px;
+  }
+
+  .alternative-row {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .alternative-row > span:last-child {
+    grid-column: 2;
+    color: var(--accent-dark);
+    font-size: 10px;
+    font-weight: 700;
   }
 
 }

@@ -281,6 +281,22 @@ export default function App() {
     return () => controller.abort();
   }, [mode, stationLoadError, stations.length]);
 
+  useEffect(() => {
+    if (!result || !window.matchMedia('(max-width: 820px)').matches) return;
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById('meeting-result');
+      if (!target) return;
+      const reduceMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      ).matches;
+      target.scrollIntoView({
+        behavior: reduceMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [result]);
+
   function updateParticipant(next: Participant) {
     setParticipants((current) =>
       current.map((participant) =>
@@ -422,13 +438,12 @@ export default function App() {
           throw new Error('No connected MRT/LRT station could be compared.');
         }
 
-        const address = await reverseGeocode(selected);
         setResult({
           mode: 'rail',
           lat: selected.lat,
           lng: selected.lng,
           title: `${selected.name} ${selected.network}`,
-          address,
+          address: '',
           station: selected,
           alternatives: ranked.slice(0, 4),
           candidateCount: ranked.length,
@@ -591,6 +606,12 @@ export default function App() {
                 : 'Find the best MRT/LRT'}
           </button>
 
+          {result ? (
+            <a className="jump-to-result" href="#meeting-result">
+              View recommendation <span aria-hidden="true">↓</span>
+            </a>
+          ) : null}
+
           <div className="planner-footnote">
             <span>Plan saved on this device</span>
             <nav aria-label="Planner and legal links">
@@ -602,12 +623,12 @@ export default function App() {
         </section>
 
         <aside className="results-column">
-          <MapPanel points={mapPoints} result={result} />
           <ResultPanel
             result={result}
             isCalculating={isCalculating}
             trainAlerts={trainAlerts}
           />
+          <MapPanel points={mapPoints} result={result} />
         </aside>
       </main>
     </div>

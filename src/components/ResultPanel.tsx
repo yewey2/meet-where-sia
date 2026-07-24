@@ -30,6 +30,25 @@ function formatMinutes(value: number): string {
   return `${hours} hr${minutes ? ` ${minutes} min` : ''}`;
 }
 
+const RAIL_LINE_NAMES: Record<string, string> = {
+  NS: 'North–South Line',
+  EW: 'East–West Line',
+  CG: 'Changi Airport Branch',
+  NE: 'North East Line',
+  CC: 'Circle Line',
+  DT: 'Downtown Line',
+  TE: 'Thomson–East Coast Line',
+  BP: 'Bukit Panjang LRT',
+  SE: 'Sengkang East LRT',
+  SW: 'Sengkang West LRT',
+  PE: 'Punggol East LRT',
+  PW: 'Punggol West LRT',
+};
+
+function formatRailLines(lineCodes: string[]): string {
+  return lineCodes.map((code) => RAIL_LINE_NAMES[code] || code).join(' · ');
+}
+
 function TrainStatus({ alerts }: { alerts: TrainAlertPayload | null }) {
   if (!alerts || alerts.status === 'not-configured') return null;
 
@@ -85,7 +104,11 @@ export function ResultPanel({
 }: ResultPanelProps) {
   if (isCalculating) {
     return (
-      <section className="result-card result-loading" aria-live="polite">
+      <section
+        id="meeting-result"
+        className="result-card result-loading"
+        aria-live="polite"
+      >
         <div className="result-loader-orbit" aria-hidden="true">
           <span />
           <i />
@@ -98,7 +121,7 @@ export function ResultPanel({
 
   if (!result) {
     return (
-      <section className="result-card result-empty">
+      <section id="meeting-result" className="result-card result-empty">
         <div className="empty-result-icon" aria-hidden="true">
           <SparkIcon />
         </div>
@@ -116,7 +139,11 @@ export function ResultPanel({
   )}`;
 
   return (
-    <section className="result-card result-complete" aria-live="polite">
+    <section
+      id="meeting-result"
+      className="result-card result-complete"
+      aria-live="polite"
+    >
       <div className="result-kicker">
         {result.mode === 'rail' ? <RailIcon /> : <SparkIcon />}
         {result.mode === 'rail' ? 'Best rail meeting point' : 'Fairest distance centre'}
@@ -126,8 +153,12 @@ export function ResultPanel({
         <div>
           <h2>{result.title}</h2>
           <p className="result-address">
-            <MapPinIcon />
-            <span>{result.address}</span>
+            {result.mode === 'rail' ? <RailIcon /> : <MapPinIcon />}
+            <span>
+              {result.mode === 'rail'
+                ? formatRailLines(result.station.lineCodes)
+                : result.address || 'Approximate centre based on the locations entered'}
+            </span>
           </p>
         </div>
         {result.mode === 'rail' ? (
@@ -136,6 +167,27 @@ export function ResultPanel({
           </span>
         ) : null}
       </div>
+
+      {result.mode === 'rail' && result.alternatives.length > 1 ? (
+        <div className="alternatives-block alternatives-primary">
+          <div className="section-label">Next-best alternatives</div>
+          <div className="alternative-list">
+            {result.alternatives.slice(1, 4).map((station, index) => (
+              <div className="alternative-row" key={station.id}>
+                <span className="alternative-rank">{index + 2}</span>
+                <span className="alternative-name">
+                  <strong>{station.name}</strong>
+                  <small>
+                    {station.lineCodes.join('/')} · avg.{' '}
+                    {formatMinutes(station.averageMinutes)}
+                  </small>
+                </span>
+                <span>{formatMinutes(station.maxMinutes)} longest</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="metric-grid">
         <div className="metric-card">
@@ -171,12 +223,6 @@ export function ResultPanel({
       {result.mode === 'rail' ? (
         <>
           <TrainStatus alerts={trainAlerts} />
-          <div className="method-note rail-method-note">
-            Compared all {result.candidateCount} connected stations for fairness,
-            then used the group average as a tie-breaker. Times include estimated
-            walking, waiting, train travel and transfers; confirm your trip before
-            leaving.
-          </div>
           <div className="journey-summary">
             <div className="section-label">Longest journey by person</div>
             {longestJourneyPerParticipant(result.station.journeys)
@@ -197,27 +243,12 @@ export function ResultPanel({
                 </div>
               ))}
           </div>
-          {result.alternatives.length > 1 ? (
-            <div className="alternatives-block">
-              <div className="section-label">Close alternatives</div>
-              <div className="alternative-list">
-                {result.alternatives.slice(1, 4).map((station, index) => (
-                  <div className="alternative-row" key={station.id}>
-                    <span className="alternative-rank">{index + 2}</span>
-                    <span className="alternative-name">
-                      <strong>{station.name}</strong>
-                      <small>
-                        {station.lineCodes.join('/')} · avg.{' '}
-                        {formatMinutes(station.averageMinutes)} ·{' '}
-                        {formatKm(station.centroidKm)} from centre
-                      </small>
-                    </span>
-                    <span>{formatMinutes(station.maxMinutes)} max</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <div className="method-note rail-method-note">
+            Compared all {result.candidateCount} connected stations for fairness,
+            then used the group average as a tie-breaker. Times include estimated
+            walking, waiting, train travel and transfers; confirm your trip before
+            leaving.
+          </div>
         </>
       ) : (
         <div className="method-note">

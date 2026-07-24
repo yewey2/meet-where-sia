@@ -108,10 +108,9 @@ export async function reverseGeocode(
     });
 
     return (
-      response.results[0]?.formatted_address ||
-      `${coordinate.lat.toFixed(6)}, ${coordinate.lng.toFixed(6)}`
+      response.results[0]?.formatted_address || ''
     );
   } catch {
-    return `${coordinate.lat.toFixed(6)}, ${coordinate.lng.toFixed(6)}`;
+    return '';
   }
 }
