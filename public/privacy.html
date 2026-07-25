@@ -1,20 +1,23 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-SG">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f6f7fb" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#f5f2ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b1110" media="(prefers-color-scheme: dark)" />
     <title>Privacy — Meet Where Sia</title>
     <style>
-      :root { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #191b22; background: #f3f4f7; }
-      body { margin: 0; }
-      main { width: min(720px, calc(100% - 32px)); margin: 40px auto; padding: clamp(24px, 5vw, 48px); border: 1px solid #e4e5ea; border-radius: 20px; background: white; box-shadow: 0 14px 36px rgb(24 25 35 / 9%); }
-      a { color: #4633cf; }
+      :root { color-scheme: dark; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #f4f7f5; background: #0b1110; --surface: #141c1a; --border: #34413d; --copy: #b7c2be; --muted: #91a09b; --accent: #ff8a80; --shadow: 0 20px 55px rgb(0 0 0 / 28%); }
+      body { margin: 0; background: radial-gradient(circle at 8% 0%, rgb(255 114 104 / 10%), transparent 28rem), #0b1110; }
+      main { width: min(720px, calc(100% - 32px)); margin: 40px auto; padding: clamp(24px, 5vw, 48px); border: 1px solid var(--border); border-radius: 22px; background: var(--surface); box-shadow: var(--shadow); }
+      a { color: var(--accent); }
       h1 { margin: 18px 0 8px; font-size: clamp(30px, 6vw, 42px); letter-spacing: -.04em; }
       h2 { margin-top: 28px; font-size: 18px; }
-      p, li { color: #5e626e; font-size: 15px; line-height: 1.7; }
+      p, li { color: var(--copy); font-size: 15px; line-height: 1.7; }
       .back { font-size: 14px; font-weight: 700; text-decoration: none; }
-      .updated { margin-top: 8px; color: #8b8f9c; font-size: 13px; }
+      .updated { margin-top: 8px; color: var(--muted); font-size: 13px; }
+      @media (prefers-color-scheme: light) { :root { color-scheme: light; color: #1b2421; background: #f5f2ea; --surface: #fffdf8; --border: #c9d0cc; --copy: #52605b; --muted: #68756f; --accent: #a82b27; --shadow: 0 18px 48px rgb(35 45 41 / 10%); } body { background: radial-gradient(circle at 8% 0%, rgb(201 56 50 / 8%), transparent 28rem), #f5f2ea; } }
     </style>
   </head>
   <body>

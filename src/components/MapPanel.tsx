@@ -92,9 +92,15 @@ export function MapPanel({ points, result }: MapPanelProps) {
     const setupRequest = new AbortController();
 
     void (async () => {
+      const reduceMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)',
+      ).matches;
       map = L.map(containerRef.current as HTMLDivElement, {
         attributionControl: true,
         zoomControl: true,
+        fadeAnimation: !reduceMotion,
+        markerZoomAnimation: !reduceMotion,
+        zoomAnimation: !reduceMotion,
       }).setView([SINGAPORE_CENTER.lat, SINGAPORE_CENTER.lng], 11);
 
       if (apiKey) {
@@ -249,10 +255,16 @@ export function MapPanel({ points, result }: MapPanelProps) {
 
   return (
     <div className="map-wrap">
+      <p className="sr-only">
+        {points.length
+          ? `Map with ${points.length} entered ${points.length === 1 ? 'location' : 'locations'}.`
+          : 'Map centred on Singapore.'}{' '}
+        {result ? `Recommended meeting point: ${result.title}.` : ''}
+      </p>
       <div
         ref={containerRef}
         className="map-canvas"
-        role="application"
+        role="region"
         aria-label={`${
           provider === 'google' ? 'Google Maps' : 'OpenStreetMap'
         } map of participant locations and meeting point`}

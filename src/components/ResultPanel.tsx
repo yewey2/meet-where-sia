@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type {
   MeetingResult,
   RailJourneyEstimate,
@@ -7,6 +8,7 @@ import {
   ArrowUpRightIcon,
   MapPinIcon,
   RailIcon,
+  ShareIcon,
   SparkIcon,
 } from './Icons';
 import { NearbyDiscovery } from './NearbyDiscovery';
@@ -32,13 +34,13 @@ function formatMinutes(value: number): string {
 }
 
 const RAIL_LINE_NAMES: Record<string, string> = {
-  NS: 'North–South Line',
-  EW: 'East–West Line',
+  NS: 'North-South Line',
+  EW: 'East-West Line',
   CG: 'Changi Airport Branch',
   NE: 'North East Line',
   CC: 'Circle Line',
   DT: 'Downtown Line',
-  TE: 'Thomson–East Coast Line',
+  TE: 'Thomson-East Coast Line',
   BP: 'Bukit Panjang LRT',
   SE: 'Sengkang East LRT',
   SW: 'Sengkang West LRT',
@@ -47,7 +49,7 @@ const RAIL_LINE_NAMES: Record<string, string> = {
 };
 
 function formatRailLines(lineCodes: string[]): string {
-  return lineCodes.map((code) => RAIL_LINE_NAMES[code] || code).join(' · ');
+  return lineCodes.map((code) => RAIL_LINE_NAMES[code] || code).join(', ');
 }
 
 function TrainStatus({ alerts }: { alerts: TrainAlertPayload | null }) {
@@ -55,7 +57,7 @@ function TrainStatus({ alerts }: { alerts: TrainAlertPayload | null }) {
 
   if (alerts.status === 'unavailable') {
     return (
-      <div className="train-status train-status-warning">
+      <div className="train-status train-status-warning" role="status">
         <span className="status-indicator" />
         Live train status is temporarily unavailable
       </div>
@@ -68,7 +70,7 @@ function TrainStatus({ alerts }: { alerts: TrainAlertPayload | null }) {
       .filter(Boolean)
       .join(', ');
     return (
-      <div className="train-status train-status-warning">
+      <div className="train-status train-status-warning" role="status">
         <span className="status-indicator" />
         LTA reports a disruption{lines ? ` on ${lines}` : ''}
       </div>
@@ -76,9 +78,9 @@ function TrainStatus({ alerts }: { alerts: TrainAlertPayload | null }) {
   }
 
   return (
-    <div className="train-status train-status-normal">
+    <div className="train-status train-status-normal" role="status">
       <span className="status-indicator" />
-      LTA reports normal or minor-delay service
+      Train service looks normal
     </div>
   );
 }
@@ -103,6 +105,12 @@ export function ResultPanel({
   isCalculating,
   trainAlerts,
 }: ResultPanelProps) {
+  const [shareStatus, setShareStatus] = useState('');
+
+  useEffect(() => {
+    setShareStatus('');
+  }, [result?.lat, result?.lng]);
+
   if (isCalculating) {
     return (
       <section
@@ -114,8 +122,8 @@ export function ResultPanel({
           <span />
           <i />
         </div>
-        <strong>Finding the fairest meeting point</strong>
-        <p>Resolving locations, comparing journeys and updating the map.</p>
+        <strong>Comparing everyone&apos;s journeys</strong>
+        <p>Checking travel time, transfers and walking.</p>
       </section>
     );
   }
@@ -126,11 +134,8 @@ export function ResultPanel({
         <div className="empty-result-icon" aria-hidden="true">
           <SparkIcon />
         </div>
-        <h2>Your result will appear here</h2>
-        <p>
-          Add everyone’s location, then find the fairest MRT/LRT station or
-          distance centre for the group.
-        </p>
+        <h2>Your meeting spot will appear here</h2>
+        <p>Add the group&apos;s starting points, then find a fair place to meet.</p>
       </section>
     );
   }
@@ -138,6 +143,32 @@ export function ResultPanel({
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     `${result.lat},${result.lng}`,
   )}`;
+  const shareText =
+    result.mode === 'rail'
+      ? `Meet at ${result.title}. Longest estimated journey: ${formatMinutes(result.maxMinutes)}.`
+      : `Meet near ${result.title}. Average distance: ${formatKm(result.averageKm)}.`;
+
+  async function shareResult() {
+    setShareStatus('');
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Meet Where Sia',
+          text: shareText,
+          url: mapsUrl,
+        });
+        setShareStatus('Shared');
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(`${shareText}\n${mapsUrl}`);
+        setShareStatus('Copied');
+      } else {
+        setShareStatus('Use the Maps link to share');
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setShareStatus('Could not share just now');
+    }
+  }
 
   return (
     <section
@@ -147,20 +178,29 @@ export function ResultPanel({
     >
       <div className="result-kicker">
         {result.mode === 'rail' ? <RailIcon /> : <SparkIcon />}
-        {result.mode === 'rail' ? 'Best rail meeting point' : 'Fairest distance centre'}
+        {result.mode === 'rail' ? 'Best place by MRT/LRT' : 'Fairest by distance'}
       </div>
 
       <div className="result-title-row">
         <div>
           <h2>{result.title}</h2>
-          <p className="result-address">
-            {result.mode === 'rail' ? <RailIcon /> : <MapPinIcon />}
-            <span>
-              {result.mode === 'rail'
-                ? formatRailLines(result.station.lineCodes)
-                : result.address || 'Approximate centre based on the locations entered'}
-            </span>
-          </p>
+          {result.mode === 'rail' ? (
+            <div
+              className="rail-line-chips"
+              aria-label={`Served by ${formatRailLines(result.station.lineCodes)}`}
+            >
+              {result.station.lineCodes.map((code) => (
+                <span className={`rail-line-chip line-${code.toLowerCase()}`} key={code}>
+                  {code}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="result-address">
+              <MapPinIcon />
+              <span>{result.address || 'Approximate centre of the locations entered'}</span>
+            </p>
+          )}
         </div>
         {result.mode === 'rail' ? (
           <span className={`network-badge network-${result.station.network.toLowerCase()}`}>
@@ -169,35 +209,12 @@ export function ResultPanel({
         ) : null}
       </div>
 
-      {result.mode === 'rail' && result.alternatives.length > 1 ? (
-        <div className="alternatives-block alternatives-primary">
-          <div className="section-label">Next-best alternatives</div>
-          <div className="alternative-list">
-            {result.alternatives.slice(1, 4).map((station, index) => (
-              <div className="alternative-row" key={station.id}>
-                <span className="alternative-rank">{index + 2}</span>
-                <span className="alternative-name">
-                  <strong>{station.name}</strong>
-                  <small>
-                    {station.lineCodes.join('/')} · avg.{' '}
-                    {formatMinutes(station.averageMinutes)}
-                  </small>
-                </span>
-                <span>{formatMinutes(station.maxMinutes)} longest</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      {result.mode === 'rail' ? <TrainStatus alerts={trainAlerts} /> : null}
 
-      {result.mode === 'rail' ? <NearbyDiscovery result={result} /> : null}
-
-      <div className="metric-grid">
-        <div className="metric-card">
+      <div className="metric-grid metric-grid-primary">
+        <div className="metric-card metric-card-emphasis">
           <span>
-            {result.mode === 'rail'
-              ? 'Longest estimated journey'
-              : 'Average endpoint distance'}
+            {result.mode === 'rail' ? 'No one travels more than' : 'Average distance'}
           </span>
           <strong>
             {result.mode === 'rail'
@@ -206,69 +223,95 @@ export function ResultPanel({
           </strong>
         </div>
         <div className="metric-card">
-          <span>{result.mode === 'rail' ? 'Group average' : 'Farthest endpoint'}</span>
+          <span>{result.mode === 'rail' ? 'Group average' : 'Farthest person'}</span>
           <strong>
             {result.mode === 'rail'
               ? formatMinutes(result.averageMinutes)
               : formatKm(result.maxKm)}
           </strong>
         </div>
-        <div className="metric-card">
-          <span>{result.mode === 'rail' ? 'Combined journey time' : 'Combined distance'}</span>
-          <strong>
-            {result.mode === 'rail'
-              ? formatMinutes(result.totalMinutes)
-              : formatKm(result.totalKm)}
-          </strong>
-        </div>
       </div>
 
       {result.mode === 'rail' ? (
-        <>
-          <TrainStatus alerts={trainAlerts} />
-          <div className="journey-summary">
-            <div className="section-label">Longest journey by person</div>
-            {longestJourneyPerParticipant(result.station.journeys)
-              .slice(0, 4)
-              .map((journey) => (
-                <div className="journey-row" key={journey.endpointId}>
-                  <span>
-                    <strong>{journey.participantName}</strong>
-                    <small title={journey.endpointLabel}>
-                      {journey.endpointKind === 'start' ? 'Start' : 'End'}: {journey.endpointLabel}
-                      {' · '}via {journey.originStationName}
-                      {journey.transfers
-                        ? ` · ${journey.transfers} transfer${journey.transfers === 1 ? '' : 's'}`
-                        : ' · direct'}
+        <div className="journey-summary">
+          <div className="section-label">Estimated journey by person</div>
+          {longestJourneyPerParticipant(result.station.journeys)
+            .slice(0, 6)
+            .map((journey) => (
+              <div className="journey-row" key={journey.endpointId}>
+                <span>
+                  <strong>{journey.participantName}</strong>
+                  <small title={journey.endpointLabel}>
+                    via {journey.originStationName}
+                    {journey.transfers
+                      ? ` · ${journey.transfers} transfer${journey.transfers === 1 ? '' : 's'}`
+                      : ' · direct'}
+                  </small>
+                </span>
+                <strong>{formatMinutes(journey.totalMinutes)}</strong>
+              </div>
+            ))}
+        </div>
+      ) : null}
+
+      {result.mode === 'rail' ? (
+        <p className="result-tip">Pick an exact exit or venue before sharing with the group.</p>
+      ) : null}
+
+      <div className="result-actions">
+        <button type="button" className="share-result-button" onClick={() => void shareResult()}>
+          <ShareIcon />
+          {shareStatus || 'Share result'}
+        </button>
+        <a
+          className="maps-link-button"
+          href={mapsUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open in Maps
+          <ArrowUpRightIcon />
+          <span className="sr-only"> (opens in a new tab)</span>
+        </a>
+      </div>
+
+      {result.mode === 'rail' && result.alternatives.length > 1 ? (
+        <details className="result-disclosure">
+          <summary>Other good stations</summary>
+          <div className="alternatives-block">
+            <div className="alternative-list">
+              {result.alternatives.slice(1, 4).map((station, index) => (
+                <div className="alternative-row" key={station.id}>
+                  <span className="alternative-rank">{index + 2}</span>
+                  <span className="alternative-name">
+                    <strong>{station.name}</strong>
+                    <small>
+                      {station.lineCodes.join('/')} · average {formatMinutes(station.averageMinutes)}
                     </small>
                   </span>
-                  <strong>{formatMinutes(journey.totalMinutes)}</strong>
+                  <span>{formatMinutes(station.maxMinutes)} longest</span>
                 </div>
               ))}
+            </div>
           </div>
-          <div className="method-note rail-method-note">
-            Compared all {result.candidateCount} connected stations for fairness,
-            then used the group average as a tie-breaker. Times include estimated
-            walking, waiting, train travel and transfers; confirm your trip before
-            leaving.
-          </div>
-        </>
-      ) : (
-        <div className="method-note">
-          This is the geometric median: the point that approximately minimizes
-          the combined straight-line distance to every location.
-        </div>
-      )}
+        </details>
+      ) : null}
 
-      <a
-        className="maps-link-button"
-        href={mapsUrl}
-        target="_blank"
-        rel="noreferrer"
-      >
-        Open in Google Maps
-        <ArrowUpRightIcon />
-      </a>
+      {result.mode === 'rail' ? (
+        <details className="result-disclosure">
+          <summary>Food and things nearby</summary>
+          <NearbyDiscovery result={result} />
+        </details>
+      ) : null}
+
+      <details className="result-disclosure">
+        <summary>How this was chosen</summary>
+        <p className="method-note">
+          {result.mode === 'rail'
+            ? `Compared ${result.candidateCount} connected stations. Estimates include walking, waiting, train travel and transfers, but not buses.`
+            : 'This point approximately minimises the combined straight-line distance to every location.'}
+        </p>
+      </details>
     </section>
   );
 }

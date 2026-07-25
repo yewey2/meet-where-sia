@@ -1,0 +1,235 @@
+import assert from 'node:assert/strict';
+import { Readable } from 'node:stream';
+import test from 'node:test';
+import {
+  createPlansHandler,
+  hashPassword,
+  MemoryPlanStore,
+  verifyPassword,
+} from '../api/_plans-core.js';
+
+const participant = {
+  id: 'person_test_1',
+  name: 'Aisha',
+  sameAsStart: true,
+  start: { query: 'Aljunied MRT', status: 'empty' },
+  end: { query: 'Aljunied MRT', status: 'empty' },
+};
+
+function cookiePair(setCookie) {
+  return String(setCookie).split(';')[0];
+}
+
+async function request(handler, { method = 'GET', url = '/api/plans', body, cookie } = {}) {
+  const stream = Readable.from([]);
+  stream.method = method;
+  stream.url = url;
+  stream.body = body;
+  stream.socket = { remoteAddress: '127.0.0.1' };
+  stream.headers = {
+    host: 'localhost:5173',
+    ...(cookie ? { cookie } : {}),
+  };
+
+  const headers = new Map();
+  let responseBody = '';
+  const response = {
+    statusCode: 200,
+    setHeader(name, value) {
+      headers.set(name.toLowerCase(), value);
+    },
+    end(value = '') {
+      responseBody += value;
+    },
+  };
+
+  await handler(stream, response);
+  return {
+    status: response.statusCode,
+    headers,
+    body: responseBody ? JSON.parse(responseBody) : null,
+  };
+}
+
+test('passwords are salted and verify without storing plaintext', async () => {
+  const first = await hashPassword('correct horse battery');
+  const second = await hashPassword('correct horse battery');
+  assert.notEqual(first, second);
+  assert.equal(first.includes('correct horse battery'), false);
+  assert.equal(await verifyPassword('correct horse battery', first), true);
+  assert.equal(await verifyPassword('wrong password', first), false);
+});
+
+test('an owner can create, manage, share, edit, and delete a plan', async () => {
+  const store = new MemoryPlanStore();
+  const handler = createPlansHandler({ store });
+
+  const created = await request(handler, {
+    method: 'POST',
+    body: {
+      action: 'create',
+      title: 'Saturday dinner',
+      displayName: 'Aisha',
+      email: 'aisha@example.com',
+      password: 'owner password 123',
+      participants: [participant],
+      mode: 'rail',
+    },
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.plan.title, 'Saturday dinner');
+  assert.equal(created.body.plan.currentMember.role, 'owner');
+  assert.equal(created.body.plan.members[0].passwordHash, undefined);
+  const planId = created.body.plan.id;
+  const ownerCookie = cookiePair(created.headers.get('set-cookie'));
+
+  const addedMember = await request(handler, {
+    method: 'POST',
+    cookie: ownerCookie,
+    body: {
+      action: 'mutate',
+      planId,
+      mutation: {
+        type: 'addMember',
+        displayName: 'Ben',
+        email: 'ben@example.com',
+        temporaryPassword: 'temporary ben 123',
+      },
+    },
+  });
+  assert.equal(addedMember.status, 200);
+  assert.equal(addedMember.body.plan.members.length, 2);
+  assert.equal(addedMember.body.plan.members[1].email, 'ben@example.com');
+
+  const login = await request(handler, {
+    method: 'POST',
+    body: {
+      action: 'login',
+      planId,
+      email: 'ben@example.com',
+      password: 'temporary ben 123',
+    },
+  });
+  assert.equal(login.status, 200);
+  assert.equal(login.body.plan.currentMember.displayName, 'Ben');
+  const memberCookie = cookiePair(login.headers.get('set-cookie'));
+
+  const updatedParticipant = {
+    ...participant,
+    name: 'Aisha (Tampines)',
+    start: { query: 'Tampines MRT', status: 'empty' },
+    end: { query: 'Tampines MRT', status: 'empty' },
+  };
+  const edited = await request(handler, {
+    method: 'POST',
+    cookie: memberCookie,
+    body: {
+      action: 'mutate',
+      planId,
+      mutation: { type: 'updateParticipant', participant: updatedParticipant },
+    },
+  });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.body.plan.participants[0].name, 'Aisha (Tampines)');
+
+  const forbidden = await request(handler, {
+    method: 'POST',
+    cookie: memberCookie,
+    body: {
+      action: 'mutate',
+      planId,
+      mutation: { type: 'renamePlan', title: 'Hijacked title' },
+    },
+  });
+  assert.equal(forbidden.status, 403);
+
+  const removed = await request(handler, {
+    method: 'POST',
+    cookie: ownerCookie,
+    body: {
+      action: 'mutate',
+      planId,
+      mutation: {
+        type: 'removeMember',
+        memberId: addedMember.body.plan.members[1].id,
+      },
+    },
+  });
+  assert.equal(removed.status, 200);
+  assert.equal(removed.body.plan.members.length, 1);
+
+  const staleSession = await request(handler, {
+    cookie: memberCookie,
+    url: `/api/plans?planId=${planId}`,
+  });
+  assert.equal(staleSession.status, 403);
+
+  const deleted = await request(handler, {
+    method: 'POST',
+    cookie: ownerCookie,
+    body: { action: 'delete', planId },
+  });
+  assert.equal(deleted.status, 200);
+
+  const missing = await request(handler, {
+    cookie: ownerCookie,
+    url: `/api/plans?planId=${planId}`,
+  });
+  assert.equal(missing.status, 404);
+});
+
+test('different participant mutations combine instead of replacing the full plan', async () => {
+  const store = new MemoryPlanStore();
+  const handler = createPlansHandler({ store });
+  const secondParticipant = { ...participant, id: 'person_test_2', name: 'Ben' };
+  const created = await request(handler, {
+    method: 'POST',
+    body: {
+      action: 'create',
+      title: 'Concurrent edits',
+      displayName: 'Owner',
+      email: 'owner@example.com',
+      password: 'owner password 123',
+      participants: [participant, secondParticipant],
+      mode: 'rail',
+    },
+  });
+  const planId = created.body.plan.id;
+  const cookie = cookiePair(created.headers.get('set-cookie'));
+
+  await Promise.all([
+    request(handler, {
+      method: 'POST', cookie,
+      body: { action: 'mutate', planId, mutation: { type: 'updateParticipant', participant: { ...participant, name: 'Aisha updated' } } },
+    }),
+    request(handler, {
+      method: 'POST', cookie,
+      body: { action: 'mutate', planId, mutation: { type: 'updateParticipant', participant: { ...secondParticipant, name: 'Ben updated' } } },
+    }),
+  ]);
+
+  const loaded = await request(handler, { cookie, url: `/api/plans?planId=${planId}` });
+  assert.deepEqual(loaded.body.plan.participants.map((item) => item.name), ['Aisha updated', 'Ben updated']);
+});
+
+test('sign-in attempts are rate limited', async () => {
+  const store = new MemoryPlanStore();
+  const handler = createPlansHandler({ store });
+  const created = await request(handler, {
+    method: 'POST',
+    body: {
+      action: 'create', title: 'Private plan', displayName: 'Owner',
+      email: 'owner@example.com', password: 'owner password 123',
+      participants: [participant], mode: 'rail',
+    },
+  });
+  const planId = created.body.plan.id;
+  let result;
+  for (let attempt = 0; attempt < 9; attempt += 1) {
+    result = await request(handler, {
+      method: 'POST',
+      body: { action: 'login', planId, email: 'owner@example.com', password: 'not the password' },
+    });
+  }
+  assert.equal(result.status, 429);
+});

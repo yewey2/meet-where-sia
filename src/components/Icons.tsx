@@ -107,3 +107,31 @@ export function UsersIcon(props: IconProps) {
     </BaseIcon>
   );
 }
+
+export function SunIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+    </BaseIcon>
+  );
+}
+
+export function MoonIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path d="M20.4 14.8A8.5 8.5 0 0 1 9.2 3.6 8.5 8.5 0 1 0 20.4 14.8Z" />
+    </BaseIcon>
+  );
+}
+
+export function ShareIcon(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <circle cx="18" cy="5" r="2.5" />
+      <circle cx="6" cy="12" r="2.5" />
+      <circle cx="18" cy="19" r="2.5" />
+      <path d="m8.2 10.8 7.6-4.5m-7.6 6.9 7.6 4.5" />
+    </BaseIcon>
+  );
+}

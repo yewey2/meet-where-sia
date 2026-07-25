@@ -20,20 +20,21 @@ export function ParticipantCard({
   onRemove,
 }: ParticipantCardProps) {
   const displayName = participant.name.trim() || `Person ${index + 1}`;
+  const namePlaceholder = index === 0 ? 'You' : `Friend ${index + 1}`;
 
   return (
-    <article className="participant-card">
+    <article className="participant-card" aria-label={`Person ${index + 1}: ${displayName}`}>
       <div className="participant-heading">
         <div className="participant-number" aria-hidden="true">
           {index + 1}
         </div>
         <div className="participant-name-field">
-          <label htmlFor={`${participant.id}-name`}>Person</label>
+          <label htmlFor={`${participant.id}-name`}>Name <span>(optional)</span></label>
           <input
             id={`${participant.id}-name`}
             type="text"
             value={participant.name}
-            placeholder={`Person ${index + 1}`}
+            placeholder={namePlaceholder}
             onChange={(event) =>
               onChange({ ...participant, name: event.target.value })
             }
@@ -51,17 +52,25 @@ export function ParticipantCard({
         </button>
       </div>
 
-      <div className="route-fields">
+      <div
+        className={`route-fields ${
+          participant.sameAsStart ? 'route-fields-single' : ''
+        }`}
+      >
         <div className="route-rail" aria-hidden="true">
           <span className="route-dot start-dot" />
-          <span className="route-line" />
-          <span className="route-dot end-dot" />
+          {!participant.sameAsStart ? (
+            <>
+              <span className="route-line" />
+              <span className="route-dot end-dot" />
+            </>
+          ) : null}
         </div>
         <div className="route-inputs">
           <LocationInput
-            label="Starting point"
+            label="Coming from"
             value={participant.start}
-            placeholder="e.g. Senja LRT"
+            placeholder="MRT/LRT, landmark or 6-digit postal code"
             stations={stations}
             onChange={(start) =>
               onChange({
@@ -75,9 +84,9 @@ export function ParticipantCard({
           <label className="same-location-control">
             <input
               type="checkbox"
-              checked={participant.sameAsStart}
+              checked={!participant.sameAsStart}
               onChange={(event) => {
-                const sameAsStart = event.target.checked;
+                const sameAsStart = !event.target.checked;
                 onChange({
                   ...participant,
                   sameAsStart,
@@ -90,17 +99,18 @@ export function ParticipantCard({
                 });
               }}
             />
-            <span>End at the same place</span>
+            <span>Different place after the meetup?</span>
           </label>
 
-          <LocationInput
-            label="Ending point"
-            value={participant.sameAsStart ? participant.start : participant.end}
-            disabled={participant.sameAsStart}
-            placeholder="e.g. ION Orchard or 425-500"
-            stations={stations}
-            onChange={(end) => onChange({ ...participant, end })}
-          />
+          {!participant.sameAsStart ? (
+            <LocationInput
+              label="Heading to after"
+              value={participant.end}
+              placeholder="MRT/LRT, landmark or 6-digit postal code"
+              stations={stations}
+              onChange={(end) => onChange({ ...participant, end })}
+            />
+          ) : null}
         </div>
       </div>
     </article>

@@ -120,26 +120,28 @@ export function NearbyDiscovery({ result }: { result: RailResult }) {
         <span className="nearby-radius">Within {SEARCH_RADIUS_KM} km</span>
       </div>
 
-      <div
+      <fieldset
         className="nearby-tabs"
-        role="tablist"
-        aria-label={`Explore around ${stationLabel}`}
       >
+        <legend className="sr-only">Explore around {stationLabel}</legend>
         {CATEGORIES.map((item) => (
-          <button
+          <label
             key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={activeCategory === item.id}
             className={activeCategory === item.id ? 'is-selected' : ''}
-            onClick={() => setActiveCategory(item.id)}
           >
-            {item.label}
-          </button>
+            <input
+              type="radio"
+              name={`nearby-${result.station.id}`}
+              value={item.id}
+              checked={activeCategory === item.id}
+              onChange={() => setActiveCategory(item.id)}
+            />
+            <span>{item.label}</span>
+          </label>
         ))}
-      </div>
+      </fieldset>
 
-      <div className="nearby-tab-panel" role="tabpanel" aria-live="polite">
+      <div className="nearby-tab-panel" aria-live="polite">
         {isLoading ? (
           <div className="nearby-loading">
             <span className="button-spinner" aria-hidden="true" />

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ParticipantCard } from './components/ParticipantCard';
 import { MapPanel } from './components/MapPanel';
 import { ResultPanel } from './components/ResultPanel';
+import { ThemeToggle } from './components/ThemeToggle';
 import {
   MapPinIcon,
   PlusIcon,
@@ -196,7 +197,7 @@ async function resolveField(
     throw new FieldResolutionError(
       participant.id,
       field,
-      `${displayName} ${field}: enter an exact MRT/LRT station name or Singapore latitude, longitude. A Google key is only needed for addresses and postal codes.`,
+      `${displayName}: place search is currently limited to MRT/LRT station names.`,
     );
   }
 
@@ -289,8 +290,9 @@ export default function App() {
       const reduceMotion = window.matchMedia(
         '(prefers-reduced-motion: reduce)',
       ).matches;
+      if (reduceMotion) return;
       target.scrollIntoView({
-        behavior: reduceMotion ? 'auto' : 'smooth',
+        behavior: 'smooth',
         block: 'start',
       });
     });
@@ -407,7 +409,7 @@ export default function App() {
 
       const points = buildEndpointPoints(resolvedParticipants);
       if (points.length === 0) {
-        throw new Error('Add at least one valid start and end point.');
+        throw new Error('Add at least one valid starting point.');
       }
 
       setParticipants(resolvedParticipants);
@@ -485,8 +487,8 @@ export default function App() {
 
   const modeDescription =
     mode === 'distance'
-      ? 'Minimizes the combined straight-line kilometres across every start and end point.'
-      : 'Compares every connected station and minimizes the longest estimated journey, then the group average.';
+      ? 'Balances straight-line distance for the whole group.'
+      : 'Balances everyone’s estimated MRT/LRT journey time.';
 
   return (
     <div className="app-shell">
@@ -495,68 +497,30 @@ export default function App() {
           <div className="brand-mark"><MapPinIcon /></div>
           <div>
             <strong>Meet Where Sia</strong>
-            <span>Singapore</span>
+            <span>Singapore meetup planner</span>
           </div>
+        </div>
+        <div className="topbar-actions">
+          <ThemeToggle />
         </div>
       </header>
 
       <main className="planner-layout">
-        <section className="planner-panel">
+        <section className="planner-panel" aria-labelledby="planner-title">
           <div className="planner-intro">
-            <div className="eyebrow"><SparkIcon /> Group meeting planner</div>
-            <h1>Find the fairest place to meet.</h1>
-            <p>
-              Enter every person’s start and end point. The app resolves each
-              Singapore location, then finds one practical centre for the group.
-            </p>
-          </div>
-
-          <div className="mode-section">
-            <div className="section-label">How should the centre be chosen?</div>
-            <div className="mode-switch" role="radiogroup" aria-label="Meeting point mode">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={mode === 'rail'}
-                className={mode === 'rail' ? 'is-selected' : ''}
-                onClick={() => {
-                  setMode('rail');
-                  setResult(null);
-                  setGlobalError('');
-                }}
-              >
-                <RailIcon />
-                <span><strong>MRT/LRT travel time</strong><small>Default · local rail graph</small></span>
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={mode === 'distance'}
-                className={mode === 'distance' ? 'is-selected' : ''}
-                onClick={() => {
-                  setMode('distance');
-                  setResult(null);
-                  setGlobalError('');
-                }}
-              >
-                <RouteIcon />
-                <span><strong>Pure distance</strong><small>Geometric median</small></span>
-              </button>
-            </div>
-            <p className="mode-description">{modeDescription}</p>
-            {mode === 'rail' && stationLoadError ? (
-              <p className="inline-warning">Station data: {stationLoadError}</p>
-            ) : null}
+            <div className="eyebrow"><SparkIcon /> Made for Singapore</div>
+            <h1 id="planner-title">Where should we meet?</h1>
+            <p>Add where everyone is coming from. We’ll find a fair, practical spot.</p>
           </div>
 
           <div className="people-section">
             <div className="people-header">
               <div>
-                <div className="section-label"><UsersIcon /> People and routes</div>
-                <p>{participants.length} {participants.length === 1 ? 'person' : 'people'} in this plan</p>
+                <div className="section-label"><UsersIcon /> Who’s meeting?</div>
+                <p>{participants.length} {participants.length === 1 ? 'person' : 'people'} added</p>
               </div>
               <button type="button" className="text-button" onClick={loadExample}>
-                Try an example
+                Use sample
               </button>
             </div>
 
@@ -581,13 +545,64 @@ export default function App() {
             </div>
 
             <button type="button" className="add-person-button" onClick={addParticipant}>
-              <PlusIcon /> Add another person
+              <PlusIcon /> Add a friend
             </button>
           </div>
 
+          <details className="mode-disclosure">
+            <summary>
+              <span className="mode-summary-copy">
+                {mode === 'rail' ? <RailIcon /> : <RouteIcon />}
+                <span>
+                  <strong>{mode === 'rail' ? 'Fair by MRT/LRT time' : 'Fair by distance'}</strong>
+                  <small>{modeDescription}</small>
+                </span>
+              </span>
+              <span className="mode-change-label">Change</span>
+            </summary>
+            <div className="mode-section">
+              <fieldset className="mode-switch">
+                <legend className="sr-only">How should the meeting spot be chosen?</legend>
+                <label className={mode === 'rail' ? 'is-selected' : ''}>
+                  <input
+                    type="radio"
+                    name="meeting-mode"
+                    value="rail"
+                    checked={mode === 'rail'}
+                    onChange={() => {
+                      setMode('rail');
+                      setResult(null);
+                      setGlobalError('');
+                    }}
+                  />
+                  <RailIcon />
+                  <span><strong>By MRT/LRT</strong><small>Balances travel time</small></span>
+                </label>
+                <label className={mode === 'distance' ? 'is-selected' : ''}>
+                  <input
+                    type="radio"
+                    name="meeting-mode"
+                    value="distance"
+                    checked={mode === 'distance'}
+                    onChange={() => {
+                      setMode('distance');
+                      setResult(null);
+                      setGlobalError('');
+                    }}
+                  />
+                  <RouteIcon />
+                  <span><strong>By distance</strong><small>Balances kilometres</small></span>
+                </label>
+              </fieldset>
+              {mode === 'rail' && stationLoadError ? (
+                <p className="inline-warning">Rail data is unavailable right now. {stationLoadError}</p>
+              ) : null}
+            </div>
+          </details>
+
           {globalError ? (
             <div className="global-error" role="alert">
-              <strong>Check the route details</strong>
+              <strong>Check the highlighted location</strong>
               <span>{globalError}</span>
             </div>
           ) : null}
@@ -600,10 +615,8 @@ export default function App() {
           >
             {isCalculating ? <span className="button-spinner" /> : <SparkIcon />}
             {isCalculating
-              ? 'Calculating…'
-              : mode === 'distance'
-                ? 'Find the distance centre'
-                : 'Find the best MRT/LRT'}
+              ? 'Comparing journeys…'
+              : 'Find our meeting spot'}
           </button>
 
           {result ? (
@@ -622,13 +635,19 @@ export default function App() {
           </div>
         </section>
 
-        <aside className="results-column">
+        <aside
+          className={`results-column ${
+            !result && !isCalculating ? 'is-empty' : ''
+          }`}
+        >
           <ResultPanel
             result={result}
             isCalculating={isCalculating}
             trainAlerts={trainAlerts}
           />
-          <MapPanel points={mapPoints} result={result} />
+          {mapPoints.length > 0 || result ? (
+            <MapPanel points={mapPoints} result={result} />
+          ) : null}
         </aside>
       </main>
     </div>

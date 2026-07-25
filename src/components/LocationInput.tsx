@@ -263,7 +263,7 @@ export function LocationInput({
     error ||
     selectionError ||
     (value.status === 'error'
-      ? 'Try a more specific Singapore place or choose a suggestion.'
+      ? 'We could not find this place. Try an MRT/LRT station, landmark or 6-digit postal code.'
       : '');
 
   return (
@@ -289,6 +289,14 @@ export function LocationInput({
           aria-autocomplete="list"
           aria-expanded={isOpen}
           aria-controls={`${listId}-listbox`}
+          aria-busy={isLoading}
+          aria-describedby={
+            visibleError ||
+            (value.query && value.status !== 'resolved' && !hasApiKey) ||
+            (value.label && value.label !== value.query)
+              ? `${listId}-message`
+              : undefined
+          }
           aria-activedescendant={
             activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined
           }
@@ -335,6 +343,7 @@ export function LocationInput({
                   }
                   type="button"
                   role="option"
+                  tabIndex={-1}
                   aria-selected={index === activeIndex}
                   className={`suggestion-row ${
                     index === activeIndex ? 'is-active' : ''
@@ -360,15 +369,13 @@ export function LocationInput({
         ) : null}
       </div>
       {visibleError ? (
-        <p className="field-message error-message">{visibleError}</p>
-      ) : value.query && value.status !== 'resolved' ? (
-        <p className="field-message">
-          {hasApiKey
-            ? `Will search as “${appendSingapore(value.query)}”`
-            : 'Choose an official station suggestion or enter latitude, longitude.'}
+        <p id={`${listId}-message`} className="field-message error-message">{visibleError}</p>
+      ) : value.query && value.status !== 'resolved' && !hasApiKey ? (
+        <p id={`${listId}-message`} className="field-message">
+          Search is currently limited to MRT/LRT stations.
         </p>
       ) : value.label && value.label !== value.query ? (
-        <p className="field-message resolved-message">{value.label}</p>
+        <p id={`${listId}-message`} className="field-message resolved-message">{value.label}</p>
       ) : null}
     </div>
   );

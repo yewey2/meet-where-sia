@@ -1,0 +1,132 @@
+import type { Mode, Participant } from '../types';
+
+export type SharedMemberRole = 'owner' | 'member';
+
+export interface SharedMember {
+  id: string;
+  displayName: string;
+  email?: string;
+  role: SharedMemberRole;
+}
+
+export interface SharedPlan {
+  id: string;
+  title: string;
+  mode: Mode;
+  participants: Participant[];
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  currentMember: SharedMember & { email: string };
+  members: SharedMember[];
+}
+
+export type PlanMutation =
+  | { type: 'updateParticipant'; participant: Participant }
+  | { type: 'addParticipant'; participant: Participant }
+  | { type: 'removeParticipant'; participantId: string }
+  | { type: 'setMode'; mode: Mode }
+  | { type: 'resetPlan'; participants: Participant[]; mode: Mode }
+  | { type: 'renamePlan'; title: string }
+  | { type: 'addMember'; displayName: string; email: string; temporaryPassword: string }
+  | { type: 'resetMemberPassword'; memberId: string; temporaryPassword: string }
+  | { type: 'removeMember'; memberId: string }
+  | { type: 'changePassword'; password: string };
+
+export class SharedPlanError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function api<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    credentials: 'same-origin',
+    ...options,
+    headers: options?.body
+      ? { 'Content-Type': 'application/json', ...options.headers }
+      : options?.headers,
+  });
+  const payload = await response.json().catch(() => ({})) as {
+    error?: string;
+    code?: string;
+  } & T;
+  if (!response.ok) {
+    throw new SharedPlanError(
+      payload.error || 'The shared plan could not be reached.',
+      response.status,
+      payload.code,
+    );
+  }
+  return payload;
+}
+
+export async function loadSharedPlan(planId: string, signal?: AbortSignal) {
+  const response = await api<{ plan: SharedPlan }>(
+    `/api/plans?planId=${encodeURIComponent(planId)}`,
+    { signal },
+  );
+  return response.plan;
+}
+
+export async function createSharedPlan(input: {
+  title: string;
+  displayName: string;
+  email: string;
+  password: string;
+  participants: Participant[];
+  mode: Mode;
+}) {
+  const response = await api<{ plan: SharedPlan }>('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'create', ...input }),
+  });
+  return response.plan;
+}
+
+export async function loginSharedPlan(planId: string, email: string, password: string) {
+  const response = await api<{ plan: SharedPlan }>('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'login', planId, email, password }),
+  });
+  return response.plan;
+}
+
+export async function mutateSharedPlan(planId: string, mutation: PlanMutation) {
+  const response = await api<{ plan: SharedPlan }>('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'mutate', planId, mutation }),
+  });
+  return response.plan;
+}
+
+export async function logoutSharedPlan(planId: string) {
+  await api<{ ok: true }>('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'logout', planId }),
+  });
+}
+
+export async function deleteSharedPlan(planId: string) {
+  await api<{ ok: true }>('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'delete', planId }),
+  });
+}
+
+export function planIdFromLocation() {
+  return new URLSearchParams(window.location.search).get('plan');
+}
+
+export function setPlanInLocation(planId?: string) {
+  const url = new URL(window.location.href);
+  if (planId) url.searchParams.set('plan', planId);
+  else url.searchParams.delete('plan');
+  window.history.replaceState({}, '', url);
+}
+
