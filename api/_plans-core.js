@@ -142,11 +142,20 @@ class ClientError extends Error {
   }
 }
 
-function envCredentials() {
-  return {
-    url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
-  };
+const REDIS_CREDENTIAL_PAIRS = [
+  ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'],
+  ['UPSTASH_REDIS_KV_REST_API_URL', 'UPSTASH_REDIS_KV_REST_API_TOKEN'],
+  ['KV_REST_API_URL', 'KV_REST_API_TOKEN'],
+];
+
+export function envCredentials(environment = process.env) {
+  for (const [urlName, tokenName] of REDIS_CREDENTIAL_PAIRS) {
+    const url = environment[urlName];
+    const token = environment[tokenName];
+    if (url && token) return { url, token };
+  }
+
+  return { url: undefined, token: undefined };
 }
 
 const MUTATE_SCRIPT = String.raw`

@@ -7,7 +7,9 @@ The collaboration code is designed to work without Google Maps or LTA keys. Exac
 1. Open the **meet-where-sia** project in Vercel.
 2. Go to **Storage** / **Marketplace** and create an **Upstash Redis** database on its free plan.
 3. Connect it to this project. Choose a Singapore/nearby region if offered.
-4. Confirm Vercel added `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (the code also accepts the older `KV_REST_API_URL` / `KV_REST_API_TOKEN` names).
+4. Confirm Vercel added a REST URL and matching writable REST token. The code accepts `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, `UPSTASH_REDIS_KV_REST_API_URL` / `UPSTASH_REDIS_KV_REST_API_TOKEN`, and the older `KV_REST_API_URL` / `KV_REST_API_TOKEN` names.
+
+   The read-only token and Redis-protocol URL are not substitutes: shared plans need Redis write operations.
 5. Redeploy the project. No values belong in Git and no manual copying into source files is needed.
 
 This store is unavoidable for reliable group editing: Vercel Functions do not provide a durable writable filesystem. Redis is used only for shared-plan JSON, password hashes, short-lived rate limits, and 30-day sessions.

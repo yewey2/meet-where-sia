@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import test from 'node:test';
 import {
   createPlansHandler,
+  envCredentials,
   hashPassword,
   MemoryPlanStore,
   verifyPassword,
@@ -58,6 +59,27 @@ test('passwords are salted and verify without storing plaintext', async () => {
   assert.equal(first.includes('correct horse battery'), false);
   assert.equal(await verifyPassword('correct horse battery', first), true);
   assert.equal(await verifyPassword('wrong password', first), false);
+});
+
+test('Vercel resource-prefixed Upstash REST credentials are recognized', () => {
+  assert.deepEqual(envCredentials({
+    UPSTASH_REDIS_KV_REST_API_URL: 'https://dummy-redis.example',
+    UPSTASH_REDIS_KV_REST_API_TOKEN: 'dummy-write-token',
+    UPSTASH_REDIS_KV_REST_API_READ_ONLY_TOKEN: 'dummy-read-only-token',
+  }), {
+    url: 'https://dummy-redis.example',
+    token: 'dummy-write-token',
+  });
+});
+
+test('Upstash credentials must be a matched writable pair', () => {
+  assert.deepEqual(envCredentials({
+    UPSTASH_REDIS_KV_REST_API_URL: 'https://dummy-redis.example',
+    UPSTASH_REDIS_KV_REST_API_READ_ONLY_TOKEN: 'dummy-read-only-token',
+  }), {
+    url: undefined,
+    token: undefined,
+  });
 });
 
 test('an owner can create, manage, share, edit, and delete a plan', async () => {
