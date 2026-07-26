@@ -3486,6 +3486,12 @@ html {
   background: var(--accent-soft);
 }
 
+@media (min-width: 601px) {
+  .planner-layout {
+    min-height: calc(100vh - 62px - 76px);
+  }
+}
+
 /* Per-person directions MVP */
 
 .journey-summary-heading {
