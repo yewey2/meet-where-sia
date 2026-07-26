@@ -3574,6 +3574,49 @@ html {
   color: var(--accent-dark);
   font-size: 14px;
 }
+.journey-leg-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.journey-leg {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.journey-leg-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.journey-leg-heading strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.journey-leg-heading span {
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.journey-leg > small {
+  display: block;
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--soft-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journey-leg .journey-route {
+  margin-top: 7px;
+}
+
 
 .journey-route {
   margin: 9px 0 7px;

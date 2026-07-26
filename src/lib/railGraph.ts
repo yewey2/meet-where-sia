@@ -6,6 +6,7 @@ import type {
   RankedStation,
 } from '../types';
 import { distanceMetrics, haversineKm } from './centroid';
+import { participantTravelTimeMetrics } from './journeyMetrics';
 
 interface RailLine {
   code: string;
@@ -417,15 +418,12 @@ export function rankStationsByTravelTime(
         });
       }
 
-      const timeValues = journeys.map((journey) => journey.totalMinutes);
-      const totalMinutes = timeValues.reduce((sum, minutes) => sum + minutes, 0);
+      const participantTimeMetrics = participantTravelTimeMetrics(journeys);
       return {
         ...station,
         ...distanceMetrics(station, points),
         centroidKm: haversineKm(center, station),
-        totalMinutes,
-        averageMinutes: totalMinutes / journeys.length,
-        maxMinutes: Math.max(...timeValues),
+        ...participantTimeMetrics,
         totalTransfers: journeys.reduce((sum, journey) => sum + journey.transfers, 0),
         journeys,
         lineCodes,
@@ -433,9 +431,9 @@ export function rankStationsByTravelTime(
     })
     .filter((station): station is RankedStation => Boolean(station))
     .sort((a, b) => {
-      // Fairness must lead the ordering. If total time leads, ride minutes along
-      // a shared route largely cancel out and any positive transfer cost makes
-      // interchange stations dominate even when one person travels much longer.
+      // Fairness compares each person's combined journey to the meetup and
+      // onward afterwards, rather than treating each leg as a different person.
+      // The worst full outing leads; the group average breaks close ties.
       const longestJourneyDelta = a.maxMinutes - b.maxMinutes;
       if (Math.abs(longestJourneyDelta) > 0.05) return longestJourneyDelta;
 

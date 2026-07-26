@@ -9,6 +9,11 @@ import type {
   TrainAlertPayload,
 } from '../types';
 import { haversineKm } from '../lib/centroid';
+import { meetingDirectionsUrl } from '../lib/directions';
+import {
+  summarizeParticipantJourneys,
+  type ParticipantJourneySummary,
+} from '../lib/journeyMetrics';
 import {
   ArrowUpRightIcon,
   MapPinIcon,
@@ -92,42 +97,30 @@ function TrainStatus({ alerts }: { alerts: TrainAlertPayload | null }) {
   );
 }
 
-function directionsUrl(origin: EndpointPoint, result: MeetingResult): string {
-  const destination =
-    result.mode === 'rail'
-      ? `${result.station.name} ${result.station.network} Station, Singapore`
-      : `${result.lat},${result.lng}`;
-  const parameters = new URLSearchParams({
-    api: '1',
-    origin: `${origin.lat},${origin.lng}`,
-    destination,
-    travelmode: 'transit',
-  });
-  return `https://www.google.com/maps/dir/?${parameters.toString()}`;
-}
-
 function DirectionsLink({
   origin,
   result,
+  afterMeetup = false,
 }: {
   origin: EndpointPoint;
   result: MeetingResult;
+  afterMeetup?: boolean;
 }) {
   return (
     <a
       className="journey-directions-link"
-      href={directionsUrl(origin, result)}
+      href={meetingDirectionsUrl(origin, result, afterMeetup)}
       target="_blank"
       rel="noopener noreferrer"
     >
-      Live transit directions
+      {afterMeetup ? 'Live directions after meetup' : 'Live directions to meetup'}
       <ArrowUpRightIcon />
       <span className="sr-only"> for {origin.participantName} (opens in a new tab)</span>
     </a>
   );
 }
 
-function RailJourneyCard({
+function RailJourneyLeg({
   journey,
   origin,
   result,
@@ -136,33 +129,89 @@ function RailJourneyCard({
   origin?: EndpointPoint;
   result: RailResult;
 }) {
+  const afterMeetup = journey.endpointKind === 'end';
   const railMinutes =
     journey.initialWaitMinutes +
     journey.rideMinutes +
     journey.transferMinutes;
 
   return (
+    <div className="journey-leg">
+      <div className="journey-leg-heading">
+        <strong>{afterMeetup ? 'After meetup' : 'To meetup'}</strong>
+        <span>{formatMinutes(journey.totalMinutes)}</span>
+      </div>
+      <small title={journey.endpointLabel}>
+        {afterMeetup ? 'To' : 'From'} {journey.endpointLabel}
+      </small>
+      <p className="journey-route">
+        {afterMeetup ? (
+          <>
+            <strong>{result.station.name} {result.station.network}</strong>
+            <span className="journey-route-separator" aria-hidden="true">→</span>
+            rail {formatMinutes(railMinutes)} incl. waits/interchanges
+            {' · '}
+            {journey.transfers
+              ? `${journey.transfers} transfer${journey.transfers === 1 ? '' : 's'}`
+              : 'direct'}
+            <span className="journey-route-separator" aria-hidden="true">→</span>
+            <strong>{journey.originStationName} station</strong>, then walk{' '}
+            {formatMinutes(journey.accessWalkMinutes)}
+          </>
+        ) : (
+          <>
+            Walk {formatMinutes(journey.accessWalkMinutes)} to{' '}
+            <strong>{journey.originStationName} station</strong>
+            <span className="journey-route-separator" aria-hidden="true">→</span>
+            rail {formatMinutes(railMinutes)} incl. waits/interchanges
+            {' · '}
+            {journey.transfers
+              ? `${journey.transfers} transfer${journey.transfers === 1 ? '' : 's'}`
+              : 'direct'}
+            <span className="journey-route-separator" aria-hidden="true">→</span>
+            <strong>{result.station.name} {result.station.network}</strong>
+          </>
+        )}
+      </p>
+      {origin ? <DirectionsLink origin={origin} result={result} afterMeetup={afterMeetup} /> : null}
+    </div>
+  );
+}
+
+function RailParticipantJourneyCard({
+  summary,
+  pointsById,
+  result,
+}: {
+  summary: ParticipantJourneySummary;
+  pointsById: Map<string, EndpointPoint>;
+  result: RailResult;
+}) {
+  return (
     <li className="journey-card">
       <div className="journey-card-heading">
         <div>
-          <h3>{journey.participantName}</h3>
-          <small title={journey.endpointLabel}>From {journey.endpointLabel}</small>
+          <h3>{summary.participantName}</h3>
+          <small>To meetup + after meetup</small>
         </div>
-        <strong>{formatMinutes(journey.totalMinutes)}</strong>
+        <strong>{formatMinutes(summary.totalMinutes)} total</strong>
       </div>
-      <p className="journey-route">
-        Walk {formatMinutes(journey.accessWalkMinutes)} to{' '}
-        <strong>{journey.originStationName} station</strong>
-        <span className="journey-route-separator" aria-hidden="true">→</span>
-        rail {formatMinutes(railMinutes)} incl. waits/interchanges
-        {' · '}
-        {journey.transfers
-          ? `${journey.transfers} transfer${journey.transfers === 1 ? '' : 's'}`
-          : 'direct'}
-        <span className="journey-route-separator" aria-hidden="true">→</span>
-        <strong>{result.station.name} {result.station.network}</strong>
-      </p>
-      {origin ? <DirectionsLink origin={origin} result={result} /> : null}
+      <div className="journey-leg-list">
+        {summary.outbound ? (
+          <RailJourneyLeg
+            journey={summary.outbound}
+            origin={pointsById.get(summary.outbound.endpointId)}
+            result={result}
+          />
+        ) : null}
+        {summary.afterMeetup ? (
+          <RailJourneyLeg
+            journey={summary.afterMeetup}
+            origin={pointsById.get(summary.afterMeetup.endpointId)}
+            result={result}
+          />
+        ) : null}
+      </div>
     </li>
   );
 }
@@ -266,17 +315,13 @@ export function ResultPanel({
   const shareUrl = websiteUrl;
   const shareText =
     result.mode === 'rail'
-      ? `Meet at ${result.title}. Longest estimated journey: ${formatMinutes(result.maxMinutes)}.`
+      ? `Meet at ${result.title}. Longest estimated full outing: ${formatMinutes(result.maxMinutes)}.`
       : `Meet near ${result.title}. Average distance: ${formatKm(result.averageKm)}.`;
   const startingPoints = points.filter((point) => point.kind === 'start');
-  const startingPointsById = new Map(
-    startingPoints.map((point) => [point.id, point]),
-  );
-  const startingJourneys =
+  const pointsById = new Map(points.map((point) => [point.id, point]));
+  const participantJourneys =
     result.mode === 'rail'
-      ? result.station.journeys.filter(
-          (journey) => journey.endpointKind === 'start',
-        )
+      ? summarizeParticipantJourneys(result.station.journeys)
       : [];
 
   async function shareResult() {
@@ -361,7 +406,7 @@ export function ResultPanel({
       <div className="metric-grid metric-grid-primary">
         <div className="metric-card metric-card-emphasis">
           <span>
-            {result.mode === 'rail' ? 'No one travels more than' : 'Average distance'}
+            {result.mode === 'rail' ? 'Longest full outing' : 'Average distance'}
           </span>
           <strong>
             {result.mode === 'rail'
@@ -370,7 +415,7 @@ export function ResultPanel({
           </strong>
         </div>
         <div className="metric-card">
-          <span>{result.mode === 'rail' ? 'Group average' : 'Farthest person'}</span>
+          <span>{result.mode === 'rail' ? 'Average per person' : 'Farthest person'}</span>
           <strong>
             {result.mode === 'rail'
               ? formatMinutes(result.averageMinutes)
@@ -382,31 +427,31 @@ export function ResultPanel({
       {result.mode === 'rail' ? (
         <div className="journey-summary">
           <div className="journey-summary-heading">
-            <div className="section-label">How everyone gets there</div>
-            <p>Estimated from each starting point. Open Maps for live steps.</p>
+            <div className="section-label">Everyone&apos;s full trip</div>
+            <p>Each total includes getting to the meetup and travelling onwards afterwards.</p>
           </div>
           <ul className="journey-list">
-            {startingJourneys.slice(0, ROUTE_PREVIEW_COUNT).map((journey) => (
-              <RailJourneyCard
-                key={journey.endpointId}
-                journey={journey}
-                origin={startingPointsById.get(journey.endpointId)}
+            {participantJourneys.slice(0, ROUTE_PREVIEW_COUNT).map((summary) => (
+              <RailParticipantJourneyCard
+                key={summary.participantId}
+                summary={summary}
+                pointsById={pointsById}
                 result={result}
               />
             ))}
           </ul>
-          {startingJourneys.length > ROUTE_PREVIEW_COUNT ? (
+          {participantJourneys.length > ROUTE_PREVIEW_COUNT ? (
             <details className="journey-more">
               <summary>
-                Show {startingJourneys.length - ROUTE_PREVIEW_COUNT} more{' '}
-                {startingJourneys.length - ROUTE_PREVIEW_COUNT === 1 ? 'route' : 'routes'}
+                Show {participantJourneys.length - ROUTE_PREVIEW_COUNT} more{' '}
+                {participantJourneys.length - ROUTE_PREVIEW_COUNT === 1 ? 'person' : 'people'}
               </summary>
               <ul className="journey-list">
-                {startingJourneys.slice(ROUTE_PREVIEW_COUNT).map((journey) => (
-                  <RailJourneyCard
-                    key={journey.endpointId}
-                    journey={journey}
-                    origin={startingPointsById.get(journey.endpointId)}
+                {participantJourneys.slice(ROUTE_PREVIEW_COUNT).map((summary) => (
+                  <RailParticipantJourneyCard
+                    key={summary.participantId}
+                    summary={summary}
+                    pointsById={pointsById}
                     result={result}
                   />
                 ))}
@@ -477,18 +522,18 @@ export function ResultPanel({
                     type="button"
                     className="alternative-row"
                     key={station.id}
-                    aria-label={`Rank ${rank}: choose ${station.name} ${station.network}, ${formatMinutes(station.maxMinutes)} longest journey`}
+                    aria-label={`Rank ${rank}: choose ${station.name} ${station.network}, ${formatMinutes(station.maxMinutes)} longest full outing`}
                     onClick={() => selectStation(station)}
                   >
                     <span className="alternative-rank">{rank}</span>
                     <span className="alternative-name">
                       <strong>{station.name}</strong>
                       <small>
-                        {station.lineCodes.join('/')} · average {formatMinutes(station.averageMinutes)}
+                        {station.lineCodes.join('/')} · average total {formatMinutes(station.averageMinutes)}
                       </small>
                     </span>
                     <span className="alternative-duration">
-                      {formatMinutes(station.maxMinutes)} longest
+                      {formatMinutes(station.maxMinutes)} longest total
                     </span>
                   </button>
                 ))}
@@ -508,7 +553,7 @@ export function ResultPanel({
         <summary>How this was chosen</summary>
         <p className="method-note">
           {result.mode === 'rail'
-            ? `Compared ${result.candidateCount} connected stations. Estimates include walking, waiting, train travel and transfers, but not buses.`
+            ? `Compared ${result.candidateCount} connected stations using each person's combined trip to the meetup and onwards afterwards. Estimates include walking, waiting, train travel and transfers, but not buses.`
             : 'This point approximately minimises the combined straight-line distance to every location.'}
         </p>
       </details>
