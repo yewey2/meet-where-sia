@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a focused improvement to Meet Where Sia
+title: "feature: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What user need would this address?
+      description: Describe the planning problem rather than only the proposed implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Explain the experience you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Data, privacy, or operational impact
+      description: Note any new provider, API key, personal data, cost, or calculation assumption.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and pull requests for similar proposals.
+          required: true

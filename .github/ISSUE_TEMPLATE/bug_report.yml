@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a reproducible problem in Meet Where Sia
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Please remove personal addresses, shared-plan links, passwords, and API keys before submitting.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      description: Include the calculation mode and non-sensitive example locations when relevant.
+      placeholder: |
+        1. Open...
+        2. Enter...
+        3. Select...
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and device
+      placeholder: Chrome on Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add screenshots or console output after removing sensitive information.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I removed personal information, credentials, and private shared-plan links.
+          required: true

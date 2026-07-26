@@ -2,6 +2,27 @@
   "name": "meet-where-sia",
   "private": true,
   "version": "0.1.0",
+  "description": "A fair meeting-point planner for groups travelling around Singapore by MRT and LRT.",
+  "keywords": [
+    "singapore",
+    "meetup-planner",
+    "mrt",
+    "lrt",
+    "transit",
+    "react"
+  ],
+  "homepage": "https://github.com/yewey2/meet-where-sia#readme",
+  "bugs": {
+    "url": "https://github.com/yewey2/meet-where-sia/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yewey2/meet-where-sia.git"
+  },
+  "funding": [
+    "https://github.com/sponsors/yewey2",
+    "https://ko-fi.com/sycprojects"
+  ],
   "type": "module",
   "engines": {
     "node": "22.x"

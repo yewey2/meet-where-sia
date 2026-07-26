@@ -1,278 +1,180 @@
 # Meet Where Sia
 
-A Singapore-focused group meeting-point planner. Each participant supplies a starting point and, optionally, a different ending point. The app resolves those locations and recommends either:
+Meet Where Sia is a Singapore-focused meetup planner that finds a fair, practical meeting point for a group. Add where everyone starts—and, if needed, where they need to end—then compare recommendations by estimated MRT/LRT travel time or straight-line distance.
 
-1. **MRT/LRT travel time (default)** — the connected rail station that minimizes the longest estimated journey, with the group average used as the tie-breaker.
-2. **Pure distance** — a geometric median that approximately minimizes the combined straight-line distance to every start and end point.
+![Meet Where Sia planner preview](docs/preview.png)
 
-![Meet Where Sia preview](docs/preview.png)
+## Why use it?
 
-## Current functionality
+- **Plan for the whole group.** Add any number of people, with separate start and end locations when a return journey is not enough.
+- **Optimise for fairness.** Rail recommendations minimise the longest estimated journey first, then use the group average as a tie-breaker.
+- **Share one live plan.** Create a link, let friends add or update their own route, and keep organiser controls separate.
+- **Find somewhere nearby.** Explore hawker centres, attractions, coffee, activities, and outdoor options around the result.
+- **Use it without paid APIs.** Exact MRT/LRT station names, Singapore coordinates, official station data, and the OpenStreetMap fallback work without a Google key.
 
-- React 19, TypeScript, Vite, Vercel Functions, and a small Express server for local/Docker use.
-- MRT/LRT travel-time mode is selected by default.
-- Add or remove any number of participants in one organizer-controlled plan.
-- Each participant has a name, start, end, and **End at the same place** option, selected by default.
-- Every connected MRT/LRT station is evaluated; no straight-line radius pre-filter is applied to rail journeys.
-- Local Singapore rail graph covering the current MRT/LRT passenger network, including Hume and CCL6.
-- Estimated access walking, train segments, waits, interchange walking, and transfer waits.
-- Exact MRT/LRT station names and Singapore latitude/longitude coordinates work without Google.
-- Google place suggestions are restricted to Singapore and every typed query is searched with `, Singapore` appended once.
-- Six-digit postal-code variants such as `425-500` and `425 500` are normalized to `425500` before searching.
-- A typed location can still be geocoded when the user does not pick an autocomplete suggestion.
-- An always-available interactive map with markers for starts, ends, the selected meeting point, and close MRT/LRT alternatives.
-- A Leaflet map using the official Google Maps Map Tiles API when configured, including Google Maps and viewport data attribution in the bottom-right control.
-- Automatic OpenStreetMap fallback when no Google key is configured or Google tiles are unavailable.
-- Rail results show average, longest, and total estimated journey time plus alternatives and journey breakdowns.
-- Rail results include a keyless **Explore nearby** section for food, coffee,
-  activities, and outdoors. Official NEA hawker centres and STB attractions are
-  distance-sorted in the app; category searches hand off to current Google Maps
-  results without requiring a Google API key.
-- Official LTA station-exit coordinates are aggregated into one point per MRT/LRT station.
-- Optional LTA DataMall train-service status check through the server API.
-- Browser-only plan persistence with `localStorage`.
-- Responsive desktop and mobile layouts.
-- Loading, empty, validation, API-setup, and upstream-error states.
-- No secrets or real API keys are included in this repository.
+## Features
 
-## How the recommendation works
+- Estimated travel across the connected Singapore MRT/LRT passenger network
+- Pure-distance mode using a geometric median rather than a simple midpoint
+- Interactive map with participant endpoints, the selected meeting point, and close alternatives
+- Google place search, geocoding, and map tiles when an optional browser key is configured
+- Official LTA station-exit data, supplemented for operational stations missing from that feed
+- Optional LTA DataMall train-service alerts
+- Local plans saved in the browser
+- Shared plans backed by Redis, with public read-only links and role-based editing
+- Responsive light and dark interfaces
+- Vercel, local Node.js, and Docker deployment options
+
+## How recommendations work
+
+### MRT/LRT travel time
+
+Every endpoint is attached to its nearest connected station. The planner runs shortest-path searches over a local rail graph and estimates:
+
+- access walking time;
+- initial wait time;
+- time on each rail segment; and
+- interchange walking and transfer waits.
+
+Candidate stations are ranked by the lowest worst-case journey, then the lowest group average, then proximity to the group's geometric centre. This makes the result favour fairness without ignoring total travel time.
+
+The graph is represented in [`src/lib/railGraph.ts`](src/lib/railGraph.ts). Station names and coordinates come from official runtime data where available, while journey timings are explicit planning estimates—not official timetables. They do not model exact walking routes, fares, accessibility, crowding, or time-of-day service patterns.
 
 ### Pure distance
 
-The arithmetic mean of latitude and longitude is a visual centroid, but it does not generally minimize the sum of distances. This app instead runs **Weiszfeld's algorithm** on a Singapore-scale local tangent plane to approximate the geometric median. Final metrics use Haversine distance.
+Pure-distance mode uses [Weiszfeld's algorithm](https://en.wikipedia.org/wiki/Geometric_median) on a Singapore-scale local tangent plane to approximate the geometric median. Final distances use the Haversine formula.
 
-Every participant contributes two endpoint observations. When **End at the same place** is selected, the start coordinate is also used as that participant's end coordinate. This keeps every participant weighted consistently with two observations.
+Each participant contributes a start and end observation. When **End at the same place** is selected, the start is counted again as the end so every participant keeps equal weight.
 
-### MRT/LRT travel time (default)
+## Shared plans and privacy
 
-The server downloads the official LTA station-exit GeoJSON from data.gov.sg, groups exits by station name, and averages each station's exit coordinates. Because that dataset can lag newly opened stations, currently operational stations absent from it are supplemented with official station-centre coordinates from Singapore OneMap. A fallback is automatically ignored once LTA's station-exit feed supplies that station. The client evaluates every connected station and runs shortest-path searches over a local MRT/LRT graph.
+Local plans stay in the browser's local storage. Shared plans require a Redis-compatible Vercel/Upstash store and use the following access model:
 
-Each endpoint is attached to its nearest connected station. A journey estimate includes straight-line access distance adjusted for a walking path, average initial wait, distance-based train segments, and an interchange cost containing both walking and another average wait. Candidate stations are sorted by:
+- Anyone with the plan link can view participant names and locations.
+- The owner can manage the plan, participants, joining, and contributor access.
+- Contributors sign in with a username and password and can edit only their assigned participant.
+- Passwords are stored as salted scrypt hashes; sessions use secure HTTP-only cookies in production.
 
-1. Lowest longest-endpoint journey, so one person is not given a much worse trip merely to reduce the group total.
-2. Lowest average journey across all endpoints as the tie-breaker.
-3. Lowest distance from the geometric center as the final tie-breaker.
+Treat shared links as group-visible links. Prefer stations or approximate locations over home addresses. See the app's [`privacy.html`](public/privacy.html) and [`terms.html`](public/terms.html) for the user-facing policies.
 
-Transfer walking and waiting are included once in each affected journey. They are not separately added to the station ranking; their effect is already present in the journey duration.
+## Quick start
 
-The topology follows the current passenger network published by LTA as of July 2026. Station names and coordinates remain runtime official data; the graph timing constants are explicit estimates in `src/lib/railGraph.ts`.
+### Requirements
 
-### Important limitation
+- Node.js 22.x
+- npm
 
-LTA DataMall does not publish a public station-to-station rail timing API. The local graph is therefore an efficient planning estimate, not an official timetable or live journey planner. It does not model exact platform paths, service headways by time of day, disruptions, crowding, fares, accessibility, or street-level walking routes. Singapore's official OneMap routing API can provide time-dependent public-transport itineraries, but requires a OneMap token and online requests; it is a possible validation layer for the top few local-graph candidates.
+### Run locally
 
-## Map providers and optional Google setup
+```bash
+git clone https://github.com/yewey2/meet-where-sia.git
+cd meet-where-sia
+npm install
+cp .env.example .env
+npm run dev
+```
 
-The interactive map always uses Leaflet. With a configured Google key, its base layer comes from the documented Google Maps Map Tiles API. The bottom-right attribution control retains Leaflet attribution and displays Google Maps plus the viewport-specific copyright returned by Google. Exact MRT/LRT station names and Singapore coordinates such as `1.3521, 103.8198` also resolve without Google.
+Open the Vite URL shown in the terminal, normally <http://localhost:5173>. The frontend runs on port `5173`; the local API runs on port `8787` and is available through Vite's `/api` proxy.
 
-Google is also used for arbitrary place/address and postal-code resolution, autocomplete, and reverse-geocoded result labels. The implementation does not use undocumented tile URLs.
+The optional integrations can be left blank. Without them, the app still supports station-name and coordinate input, the rail planner, official nearby datasets, and OpenStreetMap.
 
-OpenStreetMap's public raster tiles are appropriate for modest interactive use and require the visible attribution included on the map. For substantial production traffic, configure a commercial or self-hosted OSM-derived tile provider instead of relying on the community-funded public tile servers.
+```dotenv
+VITE_GOOGLE_MAPS_API_KEY=
+LTA_ACCOUNT_KEY=
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+PORT=8787
+```
 
-### 1. Create and restrict a browser key
+Useful commands:
 
-Enable these services in the same Google Cloud project:
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the Vite frontend and local API in watch mode |
+| `npm run build` | Type-check and build the production frontend |
+| `npm start` | Serve the built app and API on port `8787` |
+| `npm run check` | Run the TypeScript checks only |
+| `npm test` | Run the Node.js test suite |
+
+Use **Load example** in the app for a quick smoke test. The Aljunied and Eunos example should recommend Paya Lebar in rail mode.
+
+## Optional services
+
+### Google Maps Platform
+
+Set `VITE_GOOGLE_MAPS_API_KEY` to enable arbitrary Singapore addresses, postal codes, autocomplete, reverse geocoding, and Google map tiles. Enable and restrict the key to:
 
 - Map Tiles API
 - Maps JavaScript API
 - Places API (New)
 - Geocoding API
 
-Restrict the key by:
+Use website/HTTP-referrer restrictions for localhost and production origins, add API restrictions, set quotas, and monitor usage. A `VITE_` variable is compiled into the browser bundle and is visible to visitors by design.
 
-- **Application restriction:** Websites / HTTP referrers, including your localhost and production origins.
-- **API restriction:** Only the three services listed above.
+### LTA DataMall
 
-A browser Maps key is visible to website visitors by design. Security comes from referrer and API restrictions, quotas, and monitoring—not from trying to hide the key in React source.
+Set the server-only `LTA_ACCOUNT_KEY` to enable train-service status. Never add a `VITE_` prefix to this key.
 
-### 2. Configure the project
+### Shared-plan storage
 
-```bash
-cp .env.example .env
-```
+Set a writable Upstash REST URL and token to enable shared plans. The app accepts these credential pairs:
 
-Then edit `.env`:
+- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
+- `UPSTASH_REDIS_KV_REST_API_URL` and `UPSTASH_REDIS_KV_REST_API_TOKEN`
+- `KV_REST_API_URL` and `KV_REST_API_TOKEN`
 
-```dotenv
-VITE_GOOGLE_MAPS_API_KEY=
-LTA_ACCOUNT_KEY=
-PORT=8787
-```
-
-The Google key is optional. Without it, the app automatically uses OpenStreetMap and still supports official MRT/LRT station names and Singapore coordinates.
-
-## LTA API setup and use
-
-The LTA DataMall key is optional. Put it only in the server-side variable:
-
-```dotenv
-LTA_ACCOUNT_KEY=your_lta_datamall_account_key
-```
-
-Do **not** rename it with a `VITE_` prefix; Vite-prefixed variables are compiled into the browser bundle.
-
-The app currently uses the AccountKey for:
-
-- `TrainServiceAlerts`, so MRT mode can show whether LTA reports normal/minor-delay service or a major disruption.
-
-The AccountKey is not needed for station geometry. Station locations come from LTA's public static/open-data GeoJSON, proxied and cached by the server API.
-
-Other potentially useful LTA DataMall additions include station crowd density, crowd forecasts, facilities maintenance, passenger-volume data, and bus information. They do not directly provide a general door-to-door route planner, so they are not used in the current recommendation.
-
-## Run locally
-
-### Requirements
-
-- Node.js 22.12 or later
-- npm
-
-### Development mode
-
-```bash
-npm install
-npm run dev
-```
-
-Open the Vite URL shown in the terminal, normally `http://localhost:5173`.
-
-- React/Vite runs on port `5173`.
-- Express runs on port `8787`.
-- Vite proxies `/api/*` to Express.
-
-### Production build
-
-```bash
-npm run build
-npm start
-```
-
-Open `http://localhost:8787`.
-
-### Type-check only
-
-```bash
-npm run check
-```
-
-## Deploy to Vercel
-
-Import this repository into Vercel and leave the detected framework as **Vite**. The checked-in `vercel.json` selects Singapore (`sin1`) for the API functions, while Vercel builds the frontend into `dist` using `npm run build`.
-
-The four API URLs have explicit files under `api/`, so Vercel deploys each URL as its own function:
-
-- `api/health.js` → `/api/health`
-- `api/mrt-stations.js` → `/api/mrt-stations`
-- `api/nearby.js` → `/api/nearby`
-- `api/lta/train-alerts.js` → `/api/lta/train-alerts`
-
-No environment variables are required for a working station-name/coordinate-only deployment. Add these in **Project Settings → Environment Variables** only for the corresponding optional features:
-
-- `VITE_GOOGLE_MAPS_API_KEY` — Google Maps tiles, arbitrary addresses, postal codes, place search, and reverse geocoding. This is compiled into the frontend at build time, so redeploy after changing it. OpenStreetMap rendering needs no key.
-- `LTA_ACCOUNT_KEY` — live LTA train-service alerts. This remains server-side.
-
-`PORT` is only for local/Docker execution; do not set it on Vercel.
-
-## Docker
-
-If Google features are wanted, the browser key must be present at image build time because Vite compiles it into the static bundle. It can be omitted for OpenStreetMap and station-name/coordinate use. The optional LTA key remains a runtime server variable.
-
-```bash
-docker build \
-  --build-arg VITE_GOOGLE_MAPS_API_KEY="your_restricted_browser_key" \
-  -t meet-where-sia .
-
-docker run --rm -p 8787:8787 \
-  -e LTA_ACCOUNT_KEY="your_lta_datamall_account_key" \
-  meet-where-sia
-```
-
-## Example flow
-
-Use the built-in **Load example** action to populate:
-
-- Aisha: `Aljunied MRT` → same place.
-- Ben: `Eunos MRT` → same place.
-
-The example works without Google and recommends `Paya Lebar MRT`, making it a
-quick acceptance test for both the rail ranking and nearby-place list. Select
-official station suggestions or press calculate and let exact station names
-resolve against the downloaded LTA station list.
+See [Deployment](docs/DEPLOYMENT.md) for complete Vercel and Docker instructions.
 
 ## API routes
 
 | Route | Purpose |
-|---|---|
-| `GET /api/health` | Reports server status and whether the two keys are configured. |
-| `GET /api/mrt-stations` | Downloads, aggregates, and caches official LTA MRT/LRT station-exit data. |
-| `GET /api/nearby?lat=…&lng=…&radiusKm=…` | Returns nearby official NEA hawker centres and STB attractions, sorted by straight-line distance. |
-| `GET /api/lta/train-alerts` | Calls LTA DataMall with the server-side `AccountKey`; returns a safe normalized status. |
+| --- | --- |
+| `GET /api/health` | Report API status and optional service configuration |
+| `GET /api/mrt-stations` | Fetch, aggregate, supplement, and cache official MRT/LRT station data |
+| `GET /api/nearby?lat=…&lng=…&radiusKm=…` | Return nearby official hawker centres and attractions |
+| `GET /api/lta/train-alerts` | Return a normalised LTA train-service status |
+| `GET/POST /api/plans` | Read, create, authenticate, and update shared plans |
 
-The station and nearby-place datasets are cached in memory for 12 hours. LTA
-service alerts are cached for 60 seconds. The nearby radius is clamped between
-0.5 km and 3 km; the interface currently uses 1.5 km.
+Station and nearby-place datasets are cached in memory for 12 hours. Train alerts are cached for 60 seconds. Nearby searches are restricted to Singapore and a radius from 0.5 km to 3 km.
 
 ## Project structure
 
 ```text
-meet-where/
-├── api/                       # URL-matched Vercel function handlers
-│   ├── lta/train-alerts.js
-│   ├── health.js
-│   ├── nearby.js
-│   └── mrt-stations.js
-├── server/
-│   ├── index.mjs              # Express routes for local/Docker use
-│   ├── local.js               # Local listener and built frontend serving
-│   └── services.mjs           # Shared LTA proxy, normalization, and caches
+meet-where-sia/
+├── api/                 # Vercel Function entry points
+├── docs/                # Public project and deployment documentation
+├── public/              # Static images and user-facing policies
+├── server/              # Shared services and local/Docker server
 ├── src/
-│   ├── components/            # Inputs, participant cards, map, result panel
-│   ├── lib/
-│   │   ├── centroid.ts        # Haversine and geometric median
-│   │   ├── railGraph.ts       # Rail topology, timing model, shortest paths
-│   │   ├── googleMaps.ts      # Maps loader, geocoding, reverse geocoding
-│   │   ├── location.ts        # Singapore scoping and postal normalization
-│   │   └── api.ts             # Browser calls to /api
-│   ├── App.tsx
-│   ├── styles.css
-│   └── types.ts
-├── .env.example
+│   ├── components/      # Planner, map, result, and shared-plan UI
+│   └── lib/             # Location, map, rail, geometry, and plan logic
+├── test/                # Node.js tests
 ├── Dockerfile
 ├── package.json
 ├── vercel.json
 └── vite.config.ts
 ```
 
-## Future roadmap
+## Data and acknowledgements
 
-The UI already separates participant records from the calculation logic, so a shared-plan backend can be added without redesigning the recommendation engine. Potential future work includes:
+Meet Where Sia uses or links to data and services from:
 
-- Shareable plan IDs and editable links.
-- Email or one-time-link contributor identity.
-- Server-side persistence and optimistic concurrency/versioning.
-- Organizer permissions, participant-level edit permissions, and an audit log.
-- Live synchronization through WebSockets or server-sent events.
-- Expiring links, rate limits, abuse protection, and deletion controls.
-- Optional travel-time, accessibility, venue-category, and operating-hours filters.
-
-## Official data and API references
-
-- [Google Maps JavaScript Place Autocomplete Data API](https://developers.google.com/maps/documentation/javascript/place-autocomplete-data)
-- [Google Maps JavaScript Geocoding service](https://developers.google.com/maps/documentation/javascript/geocoding)
-- [Google Maps Platform API security guidance](https://developers.google.com/maps/api-security-best-practices)
-- [Google Maps Map Tiles API](https://developers.google.com/maps/documentation/tile)
-- [Google Maps 2D tiles](https://developers.google.com/maps/documentation/tile/2d-tiles-overview)
-- [Google Maps tile attribution policy](https://developers.google.com/maps/documentation/tile/policies)
-- [Leaflet documentation](https://leafletjs.com/reference.html)
-- [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
 - [LTA DataMall](https://datamall.lta.gov.sg/)
-- [LTA static datasets](https://datamall.lta.gov.sg/content/datamall/en/static-data.html)
-- [LTA MRT Station Exit GeoJSON on data.gov.sg](https://data.gov.sg/datasets/d_b39d3a0871985372d7e1637193335da5/view)
-- [LTA current rail network](https://www.lta.gov.sg/content/ltagov/en/getting_around/public_transport/rail_network.html)
-- [OneMap Search API](https://www.onemap.gov.sg/apidocs/search)
-- [OneMap public-transport routing API](https://www.onemap.gov.sg/apidocs/routing)
-- [LTA Circle Line 6](https://www.lta.gov.sg/content/ltagov/en/upcoming_projects/rail_expansion/circle_line_6.html)
-- [LTA Hume station opening](https://www.lta.gov.sg/content/ltagov/en/newsroom/2025/1/news-releases/hume_station_to_open.html)
-- [LTA Punggol Coast station opening](https://www.lta.gov.sg/content/ltagov/en/newsroom/2024/12/news-releases/punggol_coast_station_welcomes_commuters.html)
-- [NEA Hawker Centres GeoJSON](https://data.gov.sg/datasets/d_4a086da0a5553be1d89383cd90d07ecd/view)
-- [STB Tourist Attractions GeoJSON](https://data.gov.sg/datasets/d_0f2f47515425404e6c9d2a040dd87354/view)
-- [Google Maps URLs](https://developers.google.com/maps/documentation/urls/get-started)
+- [data.gov.sg](https://data.gov.sg/), including LTA station exits, NEA hawker centres, and STB attractions
+- [Singapore OneMap](https://www.onemap.gov.sg/)
+- [OpenStreetMap](https://www.openstreetmap.org/) contributors
+- [Google Maps Platform](https://developers.google.com/maps), when configured
+
+Review each provider's terms, attribution requirements, and usage limits before operating a public deployment.
+
+## Contributing and security
+
+Bug reports and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change. Please report security issues privately as described in [SECURITY.md](SECURITY.md), not through a public issue.
+
+## Support
+
+If this project is useful to you, you can support its upkeep through [GitHub Sponsors](https://github.com/sponsors/yewey2) or [Ko-fi](https://ko-fi.com/sycprojects).
+
+## License
+
+This repository does not currently include an open-source licence. Source code is publicly visible, but no reuse rights are granted until a licence is added.
