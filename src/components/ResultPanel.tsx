@@ -306,7 +306,7 @@ export function ResultPanel({
       <div className="result-actions">
         <button type="button" className="share-result-button" onClick={() => void shareResult()}>
           <ShareIcon />
-          {shareStatus || 'Share result'}
+          {shareStatus || 'Send meeting spot'}
         </button>
         <a
           className="maps-link-button"

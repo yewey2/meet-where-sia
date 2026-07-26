@@ -107,7 +107,7 @@ export function GroupPlanPanel(props: GroupPlanPanelProps) {
         onClick={() => setDialog(props.plan ? 'manage' : 'create')}
       >
         <span className="group-plan-dot" />
-        <span>{props.plan ? props.plan.title : 'Share this plan'}</span>
+        <span>{props.plan ? 'Shared plan · Manage' : 'Make this a shared plan'}</span>
         {props.plan ? <small>{props.syncLabel}</small> : null}
       </button>
 
@@ -119,7 +119,7 @@ export function GroupPlanPanel(props: GroupPlanPanelProps) {
             {dialog === 'create' ? (
               <>
                 <p className="group-kicker">Persistent and private</p>
-                <h2 id="group-dialog-title">Turn this into a shared plan</h2>
+                <h2 id="group-dialog-title">Make this a shared plan</h2>
                 <p className="group-dialog-copy">Your current people and routes are copied into a link your group can keep updating.</p>
                 <form onSubmit={(event) => void submitCreate(event)}>
                   <Field label="Plan name"><input required maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} /></Field>
@@ -139,7 +139,7 @@ export function GroupPlanPanel(props: GroupPlanPanelProps) {
                 <h2 id="group-dialog-title">{props.plan.title}</h2>
                 <div className="group-share-row">
                   <input aria-label="Share link" readOnly value={window.location.href} />
-                  <button type="button" onClick={() => void navigator.clipboard.writeText(window.location.href).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600); })}>{copied ? 'Copied' : 'Copy link'}</button>
+                  <button type="button" onClick={() => void navigator.clipboard.writeText(window.location.href).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600); })}>{copied ? 'Copied' : 'Copy invite link'}</button>
                 </div>
                 <p className="group-hint">The link identifies the plan; every person still needs their own email and password.</p>
 
