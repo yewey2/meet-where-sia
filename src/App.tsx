@@ -345,7 +345,7 @@ export default function App() {
   }
 
   function addParticipant() {
-    const next = createParticipant(`Person ${participants.length + 1}`);
+    const next = createParticipant();
     setParticipants((current) => [...current, next]);
     void shared.addParticipant(next).catch(() => undefined);
     setResult(null);
