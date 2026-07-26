@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Mode, Participant } from '../types';
 import {
+  claimSharedPlan,
+  createClaimInvite,
   joinSharedPlan,
   loginSharedPlan,
   createSharedPlan,
@@ -10,6 +12,8 @@ import {
   logoutSharedPlan,
   mutateSharedPlan,
   planIdFromLocation,
+  inviteTokenFromLocation,
+  setInviteInLocation,
   setPlanInLocation,
   SharedPlanError,
   type PlanMutation,
@@ -28,6 +32,7 @@ function message(error: unknown) {
 
 export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPlanOptions) {
   const [requestedPlanId, setRequestedPlanId] = useState<string | null>(() => planIdFromLocation());
+  const [claimToken, setClaimToken] = useState<string | null>(() => inviteTokenFromLocation());
   const [plan, setPlan] = useState<SharedPlan | null>(null);
   const [busy, setBusy] = useState(Boolean(requestedPlanId));
   const [error, setError] = useState('');
@@ -134,6 +139,7 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
   return {
     plan,
     requestedPlanId,
+    claimToken,
     busy,
     error,
     syncLabel,
@@ -160,12 +166,16 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
       const epoch = ++authEpoch.current;
       try {
         const next = await loginSharedPlan(requestedPlanId, username, password);
-        if (epoch === authEpoch.current) acceptPlan(next, true);
+        if (epoch === authEpoch.current) {
+          acceptPlan(next, true);
+          setClaimToken(null);
+          setInviteInLocation();
+        }
       } catch (loginError) {
-        setError(message(loginError));
+        if (epoch === authEpoch.current) setError(message(loginError));
         throw loginError;
       } finally {
-        setBusy(false);
+        if (epoch === authEpoch.current) setBusy(false);
       }
     },
     async join(username: string, password: string) {
@@ -175,12 +185,35 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
       const epoch = ++authEpoch.current;
       try {
         const next = await joinSharedPlan(requestedPlanId, username, password);
-        if (epoch === authEpoch.current) acceptPlan(next, true);
+        if (epoch === authEpoch.current) {
+          acceptPlan(next, true);
+          setClaimToken(null);
+          setInviteInLocation();
+        }
       } catch (joinError) {
-        setError(message(joinError));
+        if (epoch === authEpoch.current) setError(message(joinError));
         throw joinError;
       } finally {
-        setBusy(false);
+        if (epoch === authEpoch.current) setBusy(false);
+      }
+    },
+    async claim(username: string, password: string) {
+      if (!requestedPlanId || !claimToken) return;
+      setBusy(true);
+      setError('');
+      const epoch = ++authEpoch.current;
+      try {
+        const next = await claimSharedPlan(requestedPlanId, claimToken, username, password);
+        if (epoch === authEpoch.current) {
+          acceptPlan(next, true);
+          setClaimToken(null);
+          setInviteInLocation();
+        }
+      } catch (claimError) {
+        if (epoch === authEpoch.current) setError(message(claimError));
+        throw claimError;
+      } finally {
+        if (epoch === authEpoch.current) setBusy(false);
       }
     },
     async ownerLogin(email: string, password: string) {
@@ -190,12 +223,16 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
       const epoch = ++authEpoch.current;
       try {
         const next = await ownerLoginSharedPlan(requestedPlanId, email, password);
-        if (epoch === authEpoch.current) acceptPlan(next, true);
+        if (epoch === authEpoch.current) {
+          acceptPlan(next, true);
+          setClaimToken(null);
+          setInviteInLocation();
+        }
       } catch (loginError) {
-        setError(message(loginError));
+        if (epoch === authEpoch.current) setError(message(loginError));
         throw loginError;
       } finally {
-        setBusy(false);
+        if (epoch === authEpoch.current) setBusy(false);
       }
     },
     scheduleParticipant,
@@ -205,6 +242,25 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
     resetPlan: (nextParticipants: Participant[], nextMode: Mode) => runMutation({ type: 'resetPlan', participants: nextParticipants, mode: nextMode }),
     rename: (title: string) => runMutation({ type: 'renamePlan', title }, false),
     setJoining: (enabled: boolean) => runMutation({ type: 'setJoining', enabled }, false),
+    async createInvite(participantId: string) {
+      const current = planRef.current;
+      if (!current) throw new Error('Open a shared plan first.');
+      setBusy(true);
+      setError('');
+      try {
+        const result = await createClaimInvite(current.id, participantId);
+        acceptPlan(result.plan, false);
+        const inviteUrl = new URL(window.location.href);
+        inviteUrl.searchParams.set('plan', current.id);
+        inviteUrl.searchParams.set('invite', result.inviteToken);
+        return inviteUrl.toString();
+      } catch (inviteError) {
+        setError(message(inviteError));
+        throw inviteError;
+      } finally {
+        setBusy(false);
+      }
+    },
     addMember: (input: { participantId: string; temporaryPassword: string }) => runMutation({ type: 'addMember', ...input }, false),
     resetMember: (memberId: string, temporaryPassword: string) => runMutation({ type: 'resetMemberPassword', memberId, temporaryPassword }, false),
     removeMember: (memberId: string) => runMutation({ type: 'removeMember', memberId }, false),
@@ -238,6 +294,18 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
       planRef.current = null;
       setPlan(null);
       setRequestedPlanId(null);
+      setClaimToken(null);
+      setPlanInLocation();
+    },
+    leavePlan() {
+      authEpoch.current += 1;
+      participantTimers.current.forEach((timer) => window.clearTimeout(timer));
+      participantTimers.current.clear();
+      planRef.current = null;
+      setPlan(null);
+      setRequestedPlanId(null);
+      setClaimToken(null);
+      setError('');
       setPlanInLocation();
     },
   };

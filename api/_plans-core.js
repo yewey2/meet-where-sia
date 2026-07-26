@@ -16,6 +16,7 @@ const MAX_BODY_BYTES = 64 * 1024;
 const MAX_MEMBERS = 12;
 const MAX_PARTICIPANTS = 24;
 const PASSWORD_MIN_LENGTH = 6;
+const CLAIM_INVITE_SECONDS = 60 * 60 * 24 * 7;
 
 function json(response, status, payload, headers = {}) {
   response.statusCode = status;
@@ -186,6 +187,7 @@ for _, member in ipairs(plan.members) do
   if member.id == actorId then actor = member break end
 end
 if not actor then return {'FORBIDDEN'} end
+if (actor.authVersion or 1) ~= tonumber(ARGV[3]) then return {'STALE_SESSION'} end
 local ownerOnly = mutation.type ~= 'updateParticipant' and mutation.type ~= 'changePassword'
 if actor.role ~= 'owner' and ownerOnly then return {'FORBIDDEN'} end
 
@@ -226,6 +228,11 @@ elseif mutation.type == 'removeParticipant' then
     if member.participantId ~= mutation.participantId then table.insert(nextMembers, member) end
   end
   plan.members = nextMembers
+  local nextInvites = {}
+  for _, invite in ipairs(plan.claimInvites or {}) do
+    if invite.participantId ~= mutation.participantId then table.insert(nextInvites, invite) end
+  end
+  plan.claimInvites = nextInvites
 elseif mutation.type == 'setMode' then
   plan.mode = mutation.mode
 elseif mutation.type == 'resetPlan' then
@@ -236,10 +243,27 @@ elseif mutation.type == 'resetPlan' then
     if member.role == 'owner' then table.insert(owners, member) end
   end
   plan.members = owners
+  plan.claimInvites = {}
 elseif mutation.type == 'renamePlan' then
   plan.title = mutation.title
 elseif mutation.type == 'setJoining' then
   plan.joiningEnabled = mutation.enabled
+elseif mutation.type == 'createInvite' then
+  for _, member in ipairs(plan.members) do
+    if member.participantId == mutation.invite.participantId then return {'PARTICIPANT_ASSIGNED'} end
+  end
+  local participantFound = false
+  for _, participant in ipairs(plan.participants) do
+    if participant.id == mutation.invite.participantId then participantFound = true break end
+  end
+  if not participantFound then return {'PARTICIPANT_NOT_FOUND'} end
+  local nextInvites = {}
+  for _, invite in ipairs(plan.claimInvites or {}) do
+    if invite.participantId ~= mutation.invite.participantId then table.insert(nextInvites, invite) end
+  end
+  table.insert(nextInvites, mutation.invite)
+  plan.claimInvites = nextInvites
+  plan.schemaVersion = math.max(plan.schemaVersion or 1, 3)
 elseif mutation.type == 'addMember' then
   if #plan.members >= 12 then return {'MEMBER_LIMIT'} end
   for _, member in ipairs(plan.members) do
@@ -259,6 +283,11 @@ elseif mutation.type == 'addMember' then
   if not participantFound then return {'PARTICIPANT_NOT_FOUND'} end
   if not participantNameMatches then return {'USERNAME_MISMATCH'} end
   table.insert(plan.members, mutation.member)
+  local nextInvites = {}
+  for _, invite in ipairs(plan.claimInvites or {}) do
+    if invite.participantId ~= mutation.member.participantId then table.insert(nextInvites, invite) end
+  end
+  plan.claimInvites = nextInvites
 elseif mutation.type == 'resetMemberPassword' then
   local changed = false
   for _, member in ipairs(plan.members) do
@@ -313,9 +342,57 @@ for _, existing in ipairs(plan.participants) do
 end
 table.insert(plan.members, member)
 table.insert(plan.participants, participant)
-plan.schemaVersion = 2
+plan.schemaVersion = math.max(plan.schemaVersion or 1, 3)
 plan.version = (plan.version or 0) + 1
 plan.updatedAt = updatedAt
+local encoded = cjson.encode(plan)
+redis.call('SET', KEYS[1], encoded)
+return {'OK', encoded}
+`;
+
+const CLAIM_INVITE_SCRIPT = String.raw`
+local raw = redis.call('GET', KEYS[1])
+if not raw then return {'NOT_FOUND'} end
+local plan = cjson.decode(raw)
+local tokenHash = ARGV[1]
+local member = cjson.decode(ARGV[2])
+local now = ARGV[3]
+local inviteIndex = nil
+local participantId = nil
+for index, invite in ipairs(plan.claimInvites or {}) do
+  if invite.tokenHash == tokenHash then
+    inviteIndex = index
+    participantId = invite.participantId
+    if invite.expiresAt <= now then return {'INVITE_EXPIRED'} end
+    break
+  end
+end
+if not inviteIndex then return {'INVALID_INVITE'} end
+if #plan.members >= 12 then return {'MEMBER_LIMIT'} end
+for _, existing in ipairs(plan.members) do
+  if existing.usernameKey == member.usernameKey then return {'DUPLICATE_USERNAME'} end
+  if existing.participantId == participantId then return {'PARTICIPANT_ASSIGNED'} end
+end
+local participantFound = false
+for _, participant in ipairs(plan.participants) do
+  if participant.id == participantId then
+    participantFound = true
+  else
+    local participantNameKey = participant.nameKey or string.lower(participant.name or '')
+    if participantNameKey == member.usernameKey then return {'USERNAME_RESERVED'} end
+  end
+end
+if not participantFound then return {'PARTICIPANT_NOT_FOUND'} end
+member.participantId = participantId
+table.insert(plan.members, member)
+local nextInvites = {}
+for index, invite in ipairs(plan.claimInvites or {}) do
+  if index ~= inviteIndex then table.insert(nextInvites, invite) end
+end
+plan.claimInvites = nextInvites
+plan.schemaVersion = 3
+plan.version = (plan.version or 0) + 1
+plan.updatedAt = now
 local encoded = cjson.encode(plan)
 redis.call('SET', KEYS[1], encoded)
 return {'OK', encoded}
@@ -374,9 +451,9 @@ export class UpstashPlanStore {
     return this.command(['DEL', key]);
   }
 
-  async mutate(planId, actorId, mutation) {
+  async mutate(planId, actorId, authVersion, mutation) {
     const result = await this.command([
-      'EVAL', MUTATE_SCRIPT, '1', `${PLAN_PREFIX}${planId}`, actorId, JSON.stringify(mutation),
+      'EVAL', MUTATE_SCRIPT, '1', `${PLAN_PREFIX}${planId}`, actorId, JSON.stringify(mutation), String(authVersion),
     ]);
     return decodeMutationResult(result);
   }
@@ -384,6 +461,13 @@ export class UpstashPlanStore {
   async join(planId, member, participant, updatedAt) {
     const result = await this.command([
       'EVAL', JOIN_SCRIPT, '1', `${PLAN_PREFIX}${planId}`, JSON.stringify(member), JSON.stringify(participant), updatedAt,
+    ]);
+    return decodeMutationResult(result);
+  }
+
+  async claimInvite(planId, tokenHash, member, updatedAt) {
+    const result = await this.command([
+      'EVAL', CLAIM_INVITE_SCRIPT, '1', `${PLAN_PREFIX}${planId}`, tokenHash, JSON.stringify(member), updatedAt,
     ]);
     return decodeMutationResult(result);
   }
@@ -441,19 +525,20 @@ export class MemoryPlanStore {
     return this.values.delete(key) ? 1 : 0;
   }
 
-  async mutate(planId, actorId, mutation) {
+  async mutate(planId, actorId, authVersion, mutation) {
     const previous = this.mutationQueues.get(planId) || Promise.resolve();
-    const operation = previous.then(() => this.applyMutation(planId, actorId, mutation));
+    const operation = previous.then(() => this.applyMutation(planId, actorId, authVersion, mutation));
     this.mutationQueues.set(planId, operation.catch(() => undefined));
     return operation;
   }
 
-  async applyMutation(planId, actorId, mutation) {
+  async applyMutation(planId, actorId, authVersion, mutation) {
     const key = `${PLAN_PREFIX}${planId}`;
     const plan = await this.get(key);
     if (!plan) return { code: 'NOT_FOUND' };
     const actor = plan.members.find((member) => member.id === actorId);
     if (!actor) return { code: 'FORBIDDEN' };
+    if ((actor.authVersion || 1) !== (authVersion || 1)) return { code: 'STALE_SESSION' };
     const ownerOnly = !['updateParticipant', 'changePassword'].includes(mutation.type);
     if (ownerOnly && actor.role !== 'owner') return { code: 'FORBIDDEN' };
 
@@ -480,7 +565,36 @@ export class MemoryPlanStore {
       if (plan.participants.some((item) => (item.nameKey || normalizedName(item.name)) === member.usernameKey)) return { code: 'USERNAME_RESERVED' };
       plan.members.push(member);
       plan.participants.push(participant);
-      plan.schemaVersion = 2;
+      plan.schemaVersion = Math.max(plan.schemaVersion || 1, 3);
+      plan.version = (plan.version || 0) + 1;
+      plan.updatedAt = updatedAt;
+      await this.set(key, plan);
+      return { code: 'OK', plan };
+    });
+    this.mutationQueues.set(planId, operation.catch(() => undefined));
+    return operation;
+  }
+
+  async claimInvite(planId, tokenHash, member, updatedAt) {
+    const previous = this.mutationQueues.get(planId) || Promise.resolve();
+    const operation = previous.then(async () => {
+      const key = `${PLAN_PREFIX}${planId}`;
+      const plan = await this.get(key);
+      if (!plan) return { code: 'NOT_FOUND' };
+      const invite = (plan.claimInvites || []).find((item) => item.tokenHash === tokenHash);
+      if (!invite) return { code: 'INVALID_INVITE' };
+      if (invite.expiresAt <= updatedAt) return { code: 'INVITE_EXPIRED' };
+      if (plan.members.length >= MAX_MEMBERS) return { code: 'MEMBER_LIMIT' };
+      if (plan.members.some((item) => item.usernameKey === member.usernameKey)) return { code: 'DUPLICATE_USERNAME' };
+      if (plan.members.some((item) => item.participantId === invite.participantId)) return { code: 'PARTICIPANT_ASSIGNED' };
+      if (!plan.participants.some((item) => item.id === invite.participantId)) return { code: 'PARTICIPANT_NOT_FOUND' };
+      if (plan.participants.some((item) => item.id !== invite.participantId && (item.nameKey || normalizedName(item.name)) === member.usernameKey)) {
+        return { code: 'USERNAME_RESERVED' };
+      }
+      member.participantId = invite.participantId;
+      plan.members.push(member);
+      plan.claimInvites = (plan.claimInvites || []).filter((item) => item.id !== invite.id);
+      plan.schemaVersion = 3;
       plan.version = (plan.version || 0) + 1;
       plan.updatedAt = updatedAt;
       await this.set(key, plan);
@@ -530,16 +644,24 @@ function applyMemoryMutation(plan, actor, mutation) {
     plan.participants = plan.participants.filter((item) => item.id !== mutation.participantId);
     if (length === plan.participants.length) return 'PARTICIPANT_NOT_FOUND';
     plan.members = plan.members.filter((item) => item.participantId !== mutation.participantId);
+    plan.claimInvites = (plan.claimInvites || []).filter((item) => item.participantId !== mutation.participantId);
   } else if (mutation.type === 'setMode') {
     plan.mode = mutation.mode;
   } else if (mutation.type === 'resetPlan') {
     plan.participants = mutation.participants;
     plan.mode = mutation.mode;
     plan.members = plan.members.filter((item) => item.role === 'owner');
+    plan.claimInvites = [];
   } else if (mutation.type === 'renamePlan') {
     plan.title = mutation.title;
   } else if (mutation.type === 'setJoining') {
     plan.joiningEnabled = mutation.enabled;
+  } else if (mutation.type === 'createInvite') {
+    if (!plan.participants.some((item) => item.id === mutation.invite.participantId)) return 'PARTICIPANT_NOT_FOUND';
+    if (plan.members.some((item) => item.participantId === mutation.invite.participantId)) return 'PARTICIPANT_ASSIGNED';
+    plan.claimInvites = (plan.claimInvites || []).filter((item) => item.participantId !== mutation.invite.participantId);
+    plan.claimInvites.push(mutation.invite);
+    plan.schemaVersion = Math.max(plan.schemaVersion || 1, 3);
   } else if (mutation.type === 'addMember') {
     const participant = plan.participants.find((item) => item.id === mutation.member.participantId);
     if (plan.members.length >= MAX_MEMBERS) return 'MEMBER_LIMIT';
@@ -549,6 +671,7 @@ function applyMemoryMutation(plan, actor, mutation) {
     if (participant.name !== mutation.expectedParticipantName) return 'USERNAME_MISMATCH';
     participant.nameKey = mutation.member.usernameKey;
     plan.members.push(mutation.member);
+    plan.claimInvites = (plan.claimInvites || []).filter((item) => item.participantId !== mutation.member.participantId);
   } else if (mutation.type === 'resetMemberPassword') {
     const member = plan.members.find((item) => item.id === mutation.memberId && item.role !== 'owner');
     if (!member) return 'MEMBER_NOT_FOUND';
@@ -584,13 +707,17 @@ function cookieName(planId) {
 }
 
 function parseCookies(request) {
-  return Object.fromEntries(
-    String(request.headers.cookie || '')
-      .split(';')
-      .map((part) => part.trim().split('='))
-      .filter(([name, value]) => name && value)
-      .map(([name, ...value]) => [name, decodeURIComponent(value.join('='))]),
-  );
+  const cookies = {};
+  for (const part of String(request.headers.cookie || '').split(';')) {
+    const [name, ...value] = part.trim().split('=');
+    if (!name || value.length === 0) continue;
+    try {
+      cookies[name] = decodeURIComponent(value.join('='));
+    } catch {
+      // Ignore malformed, attacker-controlled cookie values.
+    }
+  }
+  return cookies;
 }
 
 function sessionCookie(request, planId, token, maxAge = SESSION_SECONDS) {
@@ -731,6 +858,9 @@ function mutationError(code) {
     PARTICIPANT_ASSIGNED: [409, 'That participant already has a username.'],
     MEMBER_NOT_FOUND: [404, 'That member was not found.'],
     JOINING_CLOSED: [403, 'The owner has closed this plan to new people.'],
+    INVALID_INVITE: [404, 'This personal invite is invalid or has already been used.'],
+    INVITE_EXPIRED: [410, 'This personal invite has expired. Ask the owner for a new one.'],
+    STALE_SESSION: [401, 'Your session is no longer valid. Sign in again.'],
     INVALID_MUTATION: [400, 'That plan change is not supported.'],
   };
   const [status, message] = errors[code] || [503, 'The plan could not be updated.'];
@@ -757,6 +887,27 @@ async function validateMutation(input, plan) {
     }
     case 'setJoining':
       return { type: input.type, enabled: Boolean(input.enabled), updatedAt };
+    case 'createInvite': {
+      const participantId = cleanText(input.participantId, 80);
+      if (!plan.participants.some((item) => item.id === participantId)) {
+        throw new ClientError(404, 'That participant was not found.');
+      }
+      const inviteToken = id(24);
+      return {
+        mutation: {
+          type: input.type,
+          invite: {
+            id: id(10),
+            participantId,
+            tokenHash: digest(inviteToken),
+            createdAt: updatedAt,
+            expiresAt: new Date(Date.now() + CLAIM_INVITE_SECONDS * 1000).toISOString(),
+          },
+          updatedAt,
+        },
+        inviteToken,
+      };
+    }
     case 'addMember': {
       const participantId = cleanText(input.participantId, 80);
       const participant = plan.participants.find((item) => item.id === participantId);
@@ -833,13 +984,14 @@ export function createPlansHandler({ store: injectedStore } = {}) {
         for (let attempt = 0; attempt < 4; attempt += 1) {
           const planId = id(12);
           plan = {
-            schemaVersion: 2,
+            schemaVersion: 3,
             id: planId,
             title,
             mode: body.mode === 'distance' ? 'distance' : 'rail',
             joiningEnabled: true,
             participants,
             members: [owner],
+            claimInvites: [],
             createdAt: now,
             updatedAt: now,
             version: 1,
@@ -936,6 +1088,30 @@ export function createPlansHandler({ store: injectedStore } = {}) {
         return json(response, 201, { plan: publicPlan(result.plan, member) });
       }
 
+      if (body.action === 'claimInvite') {
+        const planId = planIdFrom(body.planId);
+        const inviteToken = cleanText(body.inviteToken, 64);
+        if (!/^[a-zA-Z0-9_-]{20,64}$/.test(inviteToken)) throw mutationError('INVALID_INVITE');
+        const { username, usernameKey } = normalizeUsername(body.username);
+        const ip = clientIp(request);
+        const [inviteLimited, ipLimited] = await Promise.all([
+          store.hitRateLimit(digest(`claim-invite:${planId}:${inviteToken}`), 15 * 60, 12),
+          store.hitRateLimit(digest(`participant-access:${ip}:${planId}`), 15 * 60, 30),
+        ]);
+        if (inviteLimited || ipLimited) throw new ClientError(429, 'Too many attempts. Try again in 15 minutes.');
+        const passwordHash = await hashPassword(validatePassword(body.password));
+        const member = {
+          id: id(10), username, usernameKey, displayName: username,
+          role: 'member', passwordHash, authVersion: 1,
+        };
+        const now = new Date().toISOString();
+        const result = await store.claimInvite(planId, digest(inviteToken), member, now);
+        if (result.code !== 'OK') throw mutationError(result.code);
+        const claimedMember = result.plan.members.find((item) => item.id === member.id);
+        await createSession(store, request, response, planId, member.id, member.authVersion);
+        return json(response, 201, { plan: publicPlan(result.plan, claimedMember) });
+      }
+
       const planId = planIdFrom(body.planId);
       const { session, plan, member } = await authenticate(store, request, planId);
       if (body.action === 'logout') {
@@ -952,14 +1128,22 @@ export function createPlansHandler({ store: injectedStore } = {}) {
       }
       if (body.action !== 'mutate') throw new ClientError(400, 'Unknown action.');
 
-      const mutation = await validateMutation(body.mutation, plan);
-      const result = await store.mutate(planId, session.memberId, mutation);
+      const mutationType = cleanText(body.mutation?.type, 40);
+      if (member.role !== 'owner' && !['updateParticipant', 'changePassword'].includes(mutationType)) {
+        throw mutationError('FORBIDDEN');
+      }
+      const validated = await validateMutation(body.mutation, plan);
+      const mutation = validated.mutation || validated;
+      const result = await store.mutate(planId, session.memberId, session.authVersion || 1, mutation);
       if (result.code !== 'OK') throw mutationError(result.code);
       const currentMember = result.plan.members.find((item) => item.id === member.id);
       if (mutation.type === 'changePassword') {
         await createSession(store, request, response, planId, currentMember.id, currentMember.authVersion);
       }
-      return json(response, 200, { plan: publicPlan(result.plan, currentMember) });
+      return json(response, 200, {
+        plan: publicPlan(result.plan, currentMember),
+        ...(validated.inviteToken ? { inviteToken: validated.inviteToken } : {}),
+      });
     } catch (error) {
       if (error instanceof ClientError) {
         return json(response, error.status, { error: error.message, code: error.code });

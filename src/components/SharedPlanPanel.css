@@ -7,7 +7,7 @@
   color: var(--ink, #272832);
   background: var(--surface, #fff);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .group-owner-login {
@@ -19,7 +19,7 @@
 .group-owner-login summary {
   color: var(--muted, #686b77);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
 }
 
@@ -44,10 +44,10 @@
 }
 
 .group-joining-toggle strong {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .group-joining-toggle small {
   color: var(--muted, #70737e);
-  font-size: 10px;
+  font-size: 12px;
 }

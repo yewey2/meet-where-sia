@@ -105,6 +105,7 @@ test('five-character passwords fail while six-character owner and participant pa
     body: { action: 'join', planId: created.body.plan.id, username: 'Friend', password: 'abcdef' },
   });
   assert.equal(joined.status, 201);
+  assert.equal(joined.body.plan.schemaVersion, 3);
   assert.equal(joined.body.plan.currentMember.username, 'Friend');
   assert.equal(JSON.stringify(joined.body).includes('abcdef'), false);
 });
@@ -249,6 +250,101 @@ test('the datastore atomically rejects a username reserved by an existing partic
   const stored = await store.get(`mws:plan:${planId}`);
   assert.equal(stored.participants.length, 1);
   assert.equal(stored.members.length, 1);
+});
+
+test('a personal invite lets a listed person choose credentials without creating another route', async () => {
+  const store = new MemoryPlanStore();
+  const handler = createPlansHandler({ store });
+  const listedParticipant = { ...baseParticipant, id: 'person_invited_ben', name: 'Ben' };
+  const created = await createPlan(handler, [baseParticipant, listedParticipant]);
+  const planId = created.body.plan.id;
+
+  const invite = await invoke(handler, {
+    cookie: cookie(created),
+    body: { action: 'mutate', planId, mutation: { type: 'createInvite', participantId: listedParticipant.id } },
+  });
+  assert.equal(invite.status, 200);
+  assert.equal(invite.body.plan.schemaVersion, 3);
+  assert.match(invite.body.inviteToken, /^[a-zA-Z0-9_-]{20,64}$/);
+  assert.equal(JSON.stringify(invite.body.plan).includes(invite.body.inviteToken), false);
+  assert.equal(JSON.stringify(invite.body.plan).includes('claimInvites'), false);
+  assert.equal(JSON.stringify(invite.body.plan).includes('tokenHash'), false);
+
+  await invoke(handler, {
+    cookie: cookie(created),
+    body: { action: 'mutate', planId, mutation: { type: 'setJoining', enabled: false } },
+  });
+  const claimed = await invoke(handler, {
+    body: {
+      action: 'claimInvite', planId, inviteToken: invite.body.inviteToken,
+      username: 'Benny', password: 'benny6',
+    },
+  });
+  assert.equal(claimed.status, 201);
+  assert.equal(claimed.body.plan.currentMember.username, 'Benny');
+  assert.equal(claimed.body.plan.currentMember.participantId, listedParticipant.id);
+  assert.equal(claimed.body.plan.participants.length, 2);
+
+  const replayed = await invoke(handler, {
+    body: {
+      action: 'claimInvite', planId, inviteToken: invite.body.inviteToken,
+      username: 'Someone else', password: 'other6',
+    },
+  });
+  assert.equal(replayed.status, 404);
+  assert.equal(replayed.body.code, 'INVALID_INVITE');
+});
+
+test('simultaneous uses of one personal invite create exactly one assigned account', async () => {
+  const store = new MemoryPlanStore();
+  const handler = createPlansHandler({ store });
+  const listedParticipant = { ...baseParticipant, id: 'person_single_claim', name: 'Single claim' };
+  const created = await createPlan(handler, [baseParticipant, listedParticipant]);
+  const planId = created.body.plan.id;
+  const invite = await invoke(handler, {
+    cookie: cookie(created),
+    body: { action: 'mutate', planId, mutation: { type: 'createInvite', participantId: listedParticipant.id } },
+  });
+
+  const attempts = await Promise.all(Array.from({ length: 8 }, (_, index) => invoke(handler, {
+    ip: `127.0.2.${index + 1}`,
+    body: {
+      action: 'claimInvite', planId, inviteToken: invite.body.inviteToken,
+      username: `Claimant ${index}`, password: 'claim66',
+    },
+  })));
+
+  assert.equal(attempts.filter((attempt) => attempt.status === 201).length, 1);
+  const stored = await store.get(`mws:plan:${planId}`);
+  assert.equal(stored.members.filter((member) => member.participantId === listedParticipant.id).length, 1);
+  assert.equal(stored.participants.filter((participant) => participant.id === listedParticipant.id).length, 1);
+  assert.equal(stored.claimInvites.length, 0);
+});
+
+test('a personal invite cannot claim another listed participant name', async () => {
+  const store = new MemoryPlanStore();
+  const handler = createPlansHandler({ store });
+  const invited = { ...baseParticipant, id: 'person_invited_reserved', name: 'Ben' };
+  const other = { ...baseParticipant, id: 'person_other_reserved', name: 'Alice' };
+  const created = await createPlan(handler, [baseParticipant, invited, other]);
+  const planId = created.body.plan.id;
+  const invite = await invoke(handler, {
+    cookie: cookie(created),
+    body: { action: 'mutate', planId, mutation: { type: 'createInvite', participantId: invited.id } },
+  });
+
+  const rejected = await invoke(handler, {
+    body: {
+      action: 'claimInvite', planId, inviteToken: invite.body.inviteToken,
+      username: 'Alice', password: 'claim66',
+    },
+  });
+
+  assert.equal(rejected.status, 409);
+  assert.equal(rejected.body.code, 'USERNAME_RESERVED');
+  const stored = await store.get(`mws:plan:${planId}`);
+  assert.equal(stored.members.length, 1);
+  assert.equal(stored.claimInvites.length, 1);
 });
 
 test('an owner can attach a login to a legacy participant with a normalized Unicode name', async () => {

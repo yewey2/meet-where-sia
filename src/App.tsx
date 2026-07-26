@@ -586,22 +586,33 @@ export default function App() {
         <div className="topbar-actions">
           <SharedPlanPanel
             plan={shared.plan}
+            requestedPlanId={shared.requestedPlanId}
+            claimToken={shared.claimToken}
             busy={shared.busy}
             syncLabel={shared.syncLabel}
             error={shared.error}
             onCreate={shared.create}
             onLogin={shared.login}
             onJoin={shared.join}
+            onClaim={shared.claim}
             onOwnerLogin={shared.ownerLogin}
             onRename={async (title) => { await shared.rename(title); }}
             onSetJoining={async (enabled) => { await shared.setJoining(enabled); }}
-            onAddMember={async (input) => { await shared.addMember(input); }}
+            onCreateInvite={shared.createInvite}
             onResetMember={async (memberId, password) => { await shared.resetMember(memberId, password); }}
             onRemoveMember={async (member) => { await shared.removeMember(member.id); }}
             onChangePassword={async (password) => { await shared.changePassword(password); }}
             onLogout={shared.logout}
             onDelete={async () => {
               await shared.deletePlan();
+              const localPlan = loadSavedState();
+              setParticipants(localPlan.participants);
+              setMode(localPlan.mode);
+              setResult(null);
+              setGlobalError('');
+            }}
+            onLeave={() => {
+              shared.leavePlan();
               const localPlan = loadSavedState();
               setParticipants(localPlan.participants);
               setMode(localPlan.mode);
@@ -618,7 +629,7 @@ export default function App() {
         <section className="planner-panel" aria-labelledby="planner-title">
           <div className="planner-intro">
             <div className="eyebrow"><SparkIcon /> Made for Singapore</div>
-            <h1 id="planner-title">Where should we meet?</h1>
+            <h1 id="planner-title">Meet Where Sia?</h1>
             <p>Add where everyone is coming from. We’ll find a fair, practical spot.</p>
           </div>
 

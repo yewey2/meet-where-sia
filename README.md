@@ -53,9 +53,10 @@ Each participant contributes a start and end observation. When **End at the same
 Local plans stay in the browser's local storage. Shared plans require a Redis-compatible Vercel/Upstash store and use the following access model:
 
 - Anyone with the plan link can view participant names and locations.
-- The owner can manage the plan, participants, joining, and contributor access.
-- Contributors sign in with a username and password and can edit only their assigned participant.
+- The owner can manage the plan, participants, joining, and contributor access. For someone already listed, the owner can create a private one-time claim link that expires after seven days.
+- Contributors choose a plan-scoped name and password and can edit only their assigned participant. New people can add themselves when open joining is enabled.
 - Passwords are stored as salted scrypt hashes; sessions use secure HTTP-only cookies in production.
+- Personal claim tokens are stored only as hashes, never included in public plan responses, and are consumed atomically when used.
 
 Treat shared links as group-visible links. Prefer stations or approximate locations over home addresses. See the app's [`privacy.html`](public/privacy.html) and [`terms.html`](public/terms.html) for the user-facing policies.
 

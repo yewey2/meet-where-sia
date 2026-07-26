@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { SharedMember, SharedPlan } from '../lib/groupPlans';
 import './GroupPlanPanel.css';
 import './SharedPlanPanel.css';
@@ -12,23 +12,29 @@ export interface CreatePlanInput {
 
 interface SharedPlanPanelProps {
   plan: SharedPlan | null;
+  requestedPlanId: string | null;
+  claimToken: string | null;
   busy: boolean;
   syncLabel: string;
   error: string;
   onCreate: (input: CreatePlanInput) => Promise<void>;
   onLogin: (username: string, password: string) => Promise<void>;
   onJoin: (username: string, password: string) => Promise<void>;
+  onClaim: (username: string, password: string) => Promise<void>;
   onOwnerLogin: (email: string, password: string) => Promise<void>;
   onRename: (title: string) => Promise<void>;
   onSetJoining: (enabled: boolean) => Promise<void>;
-  onAddMember: (input: { participantId: string; temporaryPassword: string }) => Promise<void>;
+  onCreateInvite: (participantId: string) => Promise<string>;
   onResetMember: (memberId: string, temporaryPassword: string) => Promise<void>;
   onRemoveMember: (member: SharedMember) => Promise<void>;
   onChangePassword: (password: string) => Promise<void>;
   onLogout: () => Promise<void>;
   onDelete: () => Promise<void>;
+  onLeave: () => void;
   onDismissError: () => void;
 }
+
+type AccessMode = 'claim' | 'join' | 'login';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="group-field"><span>{label}</span>{children}</label>;
@@ -36,18 +42,25 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 export function SharedPlanPanel(props: SharedPlanPanelProps) {
   const [dialog, setDialog] = useState<'create' | 'manage' | null>(null);
+  const [accessMode, setAccessMode] = useState<AccessMode>('join');
   const [title, setTitle] = useState('Weekend meetup');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [username, setUsername] = useState('');
   const [accessPassword, setAccessPassword] = useState('');
+  const [accessPasswordConfirmation, setAccessPasswordConfirmation] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
   const [ownerPassword, setOwnerPassword] = useState('');
   const [participantId, setParticipantId] = useState('');
-  const [memberPassword, setMemberPassword] = useState('');
+  const [inviteUrl, setInviteUrl] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'plan' | 'invite' | null>(null);
+  const [localError, setLocalError] = useState('');
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const autoOpenedPlanRef = useRef<string | null>(null);
 
   const currentMember = props.plan?.currentMember ?? null;
   const owner = currentMember?.role === 'owner';
@@ -57,22 +70,84 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
     return props.plan.participants.filter((participant) => participant.name.trim() && !assigned.has(participant.id));
   }, [owner, props.plan]);
 
+  const planUrl = useMemo(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('invite');
+    return url.toString();
+  }, [props.plan?.id]);
+
+  useEffect(() => {
+    if (props.plan) setTitle(props.plan.title);
+  }, [props.plan?.id, props.plan?.title]);
+
+  useEffect(() => {
+    if (!props.plan || currentMember || autoOpenedPlanRef.current === props.plan.id) return;
+    autoOpenedPlanRef.current = props.plan.id;
+    setAccessMode(props.claimToken ? 'claim' : props.plan.joiningEnabled ? 'join' : 'login');
+    setDialog('manage');
+  }, [currentMember, props.claimToken, props.plan]);
+
+  useEffect(() => {
+    if (!dialog) return;
+    window.requestAnimationFrame(() => dialogRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDialog(null);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      triggerRef.current?.focus();
+    };
+  }, [dialog]);
+
+  function closeDialog() {
+    setLocalError('');
+    props.onDismissError();
+    setDialog(null);
+  }
+
+  function chooseAccessMode(nextMode: AccessMode) {
+    setAccessMode(nextMode);
+    setLocalError('');
+    props.onDismissError();
+  }
+
+  async function copyText(value: string, kind: 'plan' | 'invite') {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(kind);
+      window.setTimeout(() => setCopied(null), 1600);
+    } catch {
+      setLocalError('Copying was blocked. Select the link and copy it manually.');
+    }
+  }
+
   async function submitCreate(event: FormEvent) {
     event.preventDefault();
+    setLocalError('');
+    if (password !== passwordConfirmation) {
+      setLocalError('The owner passwords do not match.');
+      return;
+    }
     await props.onCreate({ title, displayName, email, password });
     setPassword('');
+    setPasswordConfirmation('');
     setDialog('manage');
   }
 
-  async function submitLogin(event: FormEvent) {
+  async function submitAccess(event: FormEvent) {
     event.preventDefault();
-    await props.onLogin(username, accessPassword);
+    setLocalError('');
+    if (accessMode !== 'login' && accessPassword !== accessPasswordConfirmation) {
+      setLocalError('The passwords do not match.');
+      return;
+    }
+    if (accessMode === 'claim') await props.onClaim(username, accessPassword);
+    else if (accessMode === 'join') await props.onJoin(username, accessPassword);
+    else await props.onLogin(username, accessPassword);
     setAccessPassword('');
-  }
-
-  async function submitJoin() {
-    await props.onJoin(username, accessPassword);
-    setAccessPassword('');
+    setAccessPasswordConfirmation('');
+    closeDialog();
   }
 
   async function submitOwnerLogin(event: FormEvent) {
@@ -81,28 +156,31 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
     setOwnerPassword('');
   }
 
-  async function addMember(event: FormEvent) {
+  async function createInvite(event: FormEvent) {
     event.preventDefault();
     if (!participantId) return;
-    await props.onAddMember({ participantId, temporaryPassword: memberPassword });
-    setParticipantId('');
-    setMemberPassword('');
+    setInviteUrl(await props.onCreateInvite(participantId));
   }
 
-  const buttonLabel = !props.plan
-    ? 'Make this a shared plan'
+  const buttonLabel = props.requestedPlanId && !props.plan
+    ? props.busy ? 'Loading shared plan…' : 'Shared plan unavailable'
+    : !props.plan
+      ? 'Make this a shared plan'
     : owner
       ? 'Shared plan · Manage'
       : currentMember
         ? 'My shared route'
-        : 'View or join plan';
+        : 'Join this plan';
+
+  const combinedError = localError || props.error;
 
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         className={props.plan ? 'group-plan-button is-shared' : 'group-plan-button'}
-        onClick={() => setDialog(props.plan ? 'manage' : 'create')}
+        onClick={() => setDialog(props.requestedPlanId || props.plan ? 'manage' : 'create')}
       >
         <span className="group-plan-dot" />
         <span>{buttonLabel}</span>
@@ -110,15 +188,15 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
       </button>
 
       {dialog ? (
-        <div className="group-dialog-backdrop" role="presentation" onMouseDown={() => setDialog(null)}>
-          <section className="group-dialog" role="dialog" aria-modal="true" aria-labelledby="group-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="group-dialog-close" type="button" aria-label="Close" onClick={() => setDialog(null)}>×</button>
+        <div className="group-dialog-backdrop" role="presentation" onMouseDown={closeDialog}>
+          <section ref={dialogRef} tabIndex={-1} className="group-dialog" role="dialog" aria-modal="true" aria-labelledby="group-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="group-dialog-close" type="button" aria-label="Close" onClick={closeDialog}>×</button>
 
             {dialog === 'create' ? (
               <>
-                <p className="group-kicker">Public to anyone with the link</p>
-                <h2 id="group-dialog-title">Make this a shared plan</h2>
-                <p className="group-dialog-copy">Friends can view without signing in. You remain the owner and manage who can edit.</p>
+                <p className="group-kicker">Share with your group</p>
+                <h2 id="group-dialog-title">Create a shared plan</h2>
+                <p className="group-dialog-copy">Friends can view the plan from its link and create access to add their own route. You stay in control.</p>
                 <form onSubmit={(event) => void submitCreate(event).catch(() => undefined)}>
                   <Field label="Plan name"><input required maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} /></Field>
                   <div className="group-field-row">
@@ -126,50 +204,65 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
                     <Field label="Owner email"><input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
                   </div>
                   <Field label="Owner password"><input type="password" autoComplete="new-password" minLength={6} required value={password} onChange={(event) => setPassword(event.target.value)} /></Field>
-                  <small className="group-hint">At least 6 characters. Only the owner needs an email.</small>
-                  {props.error ? <p className="group-error" role="alert">{props.error}</p> : null}
+                  <Field label="Confirm owner password"><input type="password" autoComplete="new-password" minLength={6} required value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} /></Field>
+                  <small className="group-hint">Use at least 6 characters. There is no email password recovery yet, so save this password somewhere safe.</small>
+                  {combinedError ? <p className="group-error" role="alert">{combinedError}</p> : null}
                   <button className="group-primary" type="submit" disabled={props.busy}>{props.busy ? 'Creating…' : 'Create shared plan'}</button>
                 </form>
               </>
-            ) : props.plan ? (
+            ) : !props.plan ? (
+              <>
+                <p className="group-kicker">{currentMember ? 'Shared plan' : 'You’re invited'}</p>
+                <h2 id="group-dialog-title">This plan could not be opened</h2>
+                <p className="group-dialog-copy">{props.error || 'The link may be invalid or the plan may have been deleted.'}</p>
+                <button className="group-primary group-standalone-action" type="button" onClick={() => { props.onLeave(); closeDialog(); }}>Return to my local plan</button>
+              </>
+            ) : (
               <>
                 <p className="group-kicker">Shared plan</p>
                 <h2 id="group-dialog-title">{props.plan.title}</h2>
                 <div className="group-share-row">
-                  <input aria-label="Share link" readOnly value={window.location.href} />
-                  <button type="button" onClick={() => void navigator.clipboard.writeText(window.location.href).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600); })}>{copied ? 'Copied' : 'Copy link'}</button>
+                  <input aria-label="Share link" readOnly value={planUrl} />
+                  <button type="button" onClick={() => void copyText(planUrl, 'plan')}>{copied === 'plan' ? 'Copied' : 'Copy link'}</button>
                 </div>
                 <p className="group-hint">Anyone with this link can view names and locations. Prefer MRT stations or approximate locations over home addresses.</p>
 
                 {!currentMember ? (
-                  <div className="group-owner-tools">
-                    <div className="group-member-summary"><strong>Viewing without login</strong><span>Sign in only if you want to add or update your route.</span></div>
-                    <form className="group-add-member" onSubmit={(event) => void submitLogin(event).catch(() => undefined)}>
-                      <h3>Edit my route</h3>
-                      <Field label="Username"><input autoComplete="username" required maxLength={80} value={username} onChange={(event) => setUsername(event.target.value)} /></Field>
-                      <Field label="Password"><input type="password" autoComplete="current-password" minLength={6} required value={accessPassword} onChange={(event) => setAccessPassword(event.target.value)} /></Field>
-                      <small className="group-hint">Already joined? Sign in. New here? Joining as a new person creates one route using this username.</small>
-                      <button type="submit" disabled={props.busy}>{props.busy ? 'Checking…' : 'Sign in'}</button>
-                      <button type="button" disabled={props.busy || !props.plan.joiningEnabled || !username.trim() || accessPassword.length < 6} onClick={() => void submitJoin().catch(() => undefined)}>{props.plan.joiningEnabled ? 'Join as a new person' : 'New joining is closed'}</button>
+                  <div className="group-owner-tools group-access-tools">
+                    <div className="group-member-summary"><strong>Join to add or edit your route</strong><span>Access is only for this plan—there is no site-wide account.</span></div>
+                    <div className="group-access-tabs" role="tablist" aria-label="Plan access options">
+                      {props.claimToken ? <button type="button" role="tab" aria-selected={accessMode === 'claim'} className={accessMode === 'claim' ? 'is-active' : ''} onClick={() => chooseAccessMode('claim')}>Claim my route</button> : null}
+                      {props.plan.joiningEnabled ? <button type="button" role="tab" aria-selected={accessMode === 'join'} className={accessMode === 'join' ? 'is-active' : ''} onClick={() => chooseAccessMode('join')}>I’m new here</button> : null}
+                      <button type="button" role="tab" aria-selected={accessMode === 'login'} className={accessMode === 'login' ? 'is-active' : ''} onClick={() => chooseAccessMode('login')}>Sign in</button>
+                    </div>
+                    <form className="group-add-member group-access-form" onSubmit={(event) => void submitAccess(event).catch(() => undefined)}>
+                      <h3>{accessMode === 'claim' ? 'Claim your listed route' : accessMode === 'join' ? 'Join as a new person' : 'Welcome back'}</h3>
+                      <p>{accessMode === 'claim' ? 'This personal link connects your login to the route the organiser created for you.' : accessMode === 'join' ? 'We’ll add one new route under your name.' : 'Use the name and password you chose for this plan.'}</p>
+                      <Field label="Name in this plan"><input autoComplete="username" required maxLength={80} value={username} onChange={(event) => setUsername(event.target.value)} /></Field>
+                      <Field label="Password"><input type="password" autoComplete={accessMode === 'login' ? 'current-password' : 'new-password'} minLength={6} required value={accessPassword} onChange={(event) => setAccessPassword(event.target.value)} /></Field>
+                      {accessMode !== 'login' ? <Field label="Confirm password"><input type="password" autoComplete="new-password" minLength={6} required value={accessPasswordConfirmation} onChange={(event) => setAccessPasswordConfirmation(event.target.value)} /></Field> : null}
+                      {combinedError ? <p className="group-error" role="alert">{combinedError}</p> : null}
+                      <button className="group-primary" type="submit" disabled={props.busy}>{props.busy ? 'Please wait…' : accessMode === 'claim' ? 'Claim route and continue' : accessMode === 'join' ? 'Join plan' : 'Sign in'}</button>
                     </form>
+                    {!props.plan.joiningEnabled && !props.claimToken ? <p className="group-hint">The owner has closed new joining. Existing members can still sign in.</p> : null}
                     <details className="group-owner-login">
-                      <summary>Plan owner sign in</summary>
+                      <summary>Are you the plan owner?</summary>
                       <form className="group-add-member" onSubmit={(event) => void submitOwnerLogin(event).catch(() => undefined)}>
                         <Field label="Owner email"><input type="email" autoComplete="email" required value={ownerEmail} onChange={(event) => setOwnerEmail(event.target.value)} /></Field>
                         <Field label="Password"><input type="password" autoComplete="current-password" minLength={6} required value={ownerPassword} onChange={(event) => setOwnerPassword(event.target.value)} /></Field>
-                        <button type="submit" disabled={props.busy}>Owner sign in</button>
+                        <button className="group-primary" type="submit" disabled={props.busy}>Owner sign in</button>
                       </form>
                     </details>
                   </div>
                 ) : owner ? (
                   <div className="group-owner-tools">
-                    <form className="group-inline-form" onSubmit={(event) => { event.preventDefault(); void props.onRename(title || props.plan!.title); }}>
-                      <Field label="Plan name"><input maxLength={100} defaultValue={props.plan.title} onChange={(event) => setTitle(event.target.value)} /></Field>
+                    <form className="group-inline-form" onSubmit={(event) => { event.preventDefault(); void props.onRename(title); }}>
+                      <Field label="Plan name"><input maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} /></Field>
                       <button type="submit" disabled={props.busy}>Rename</button>
                     </form>
                     <label className="group-joining-toggle">
                       <input type="checkbox" checked={props.plan.joiningEnabled} onChange={(event) => void props.onSetJoining(event.target.checked)} />
-                      <span><strong>Allow new people to join</strong><small>Turn this off once your group is complete.</small></span>
+                      <span><strong>Allow new people to join</strong><small>Personal claim links still work when this is off.</small></span>
                     </label>
                     <h3>People with edit access</h3>
                     {props.plan.members.some((member) => member.role !== 'owner' && !member.participantId) ? (
@@ -188,16 +281,26 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
                         </li>
                       ))}
                     </ul>
-                    <form className="group-add-member" onSubmit={(event) => void addMember(event).catch(() => undefined)}>
-                      <h3>Create a login for an existing person</h3>
+                    <form className="group-add-member" onSubmit={(event) => void createInvite(event).catch(() => undefined)}>
+                      <h3>Invite someone already listed</h3>
+                      <p>Send a private, one-time link so they can choose their own name and password. It expires after 7 days.</p>
                       <Field label="Person">
-                        <select required value={participantId} onChange={(event) => setParticipantId(event.target.value)}>
+                        <select required value={participantId} onChange={(event) => { setParticipantId(event.target.value); setInviteUrl(''); }}>
                           <option value="">Choose a named person</option>
                           {availableParticipants.map((participant) => <option key={participant.id} value={participant.id}>{participant.name}</option>)}
                         </select>
                       </Field>
-                      <Field label="Temporary password"><input type="password" minLength={6} required value={memberPassword} onChange={(event) => setMemberPassword(event.target.value)} /></Field>
-                      <button type="submit" disabled={props.busy || availableParticipants.length === 0}>Create login</button>
+                      <button type="submit" disabled={props.busy || availableParticipants.length === 0}>Create personal invite</button>
+                      {inviteUrl ? (
+                        <div className="group-invite-result">
+                          <strong>Personal invite ready</strong>
+                          <div className="group-share-row">
+                            <input aria-label="Personal invite link" readOnly value={inviteUrl} />
+                            <button type="button" onClick={() => void copyText(inviteUrl, 'invite')}>{copied === 'invite' ? 'Copied' : 'Copy'}</button>
+                          </div>
+                          <small>Share this only with the selected person. Creating another invite for them invalidates this one.</small>
+                        </div>
+                      ) : null}
                     </form>
                   </div>
                 ) : (
@@ -206,11 +309,11 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
 
                 {currentMember ? (
                   <form className="group-password-form" onSubmit={(event) => { event.preventDefault(); void props.onChangePassword(newPassword).then(() => setNewPassword('')); }}>
-                    <Field label="Change my password"><input type="password" minLength={6} required placeholder="New password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></Field>
+                    <Field label="Change my password"><input type="password" autoComplete="new-password" minLength={6} required placeholder="New password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></Field>
                     <button type="submit" disabled={props.busy}>Update</button>
                   </form>
                 ) : null}
-                {props.error ? <p className="group-error" role="alert"><button type="button" onClick={props.onDismissError}>×</button>{props.error}</p> : null}
+                {currentMember && combinedError ? <p className="group-error" role="alert"><button type="button" onClick={() => { setLocalError(''); props.onDismissError(); }}>×</button>{combinedError}</p> : null}
                 {currentMember ? (
                   <div className="group-dialog-footer">
                     <button type="button" onClick={() => void props.onLogout()}>Sign out</button>
@@ -218,7 +321,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
                   </div>
                 ) : null}
               </>
-            ) : null}
+            )}
           </section>
         </div>
       ) : null}

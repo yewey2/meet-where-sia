@@ -33,6 +33,7 @@ export type PlanMutation =
   | { type: 'resetPlan'; participants: Participant[]; mode: Mode }
   | { type: 'renamePlan'; title: string }
   | { type: 'setJoining'; enabled: boolean }
+  | { type: 'createInvite'; participantId: string }
   | { type: 'addMember'; participantId: string; temporaryPassword: string }
   | { type: 'resetMemberPassword'; memberId: string; temporaryPassword: string }
   | { type: 'removeMember'; memberId: string }
@@ -118,6 +119,21 @@ export async function joinSharedPlan(planId: string, username: string, password:
   return response.plan;
 }
 
+export async function claimSharedPlan(planId: string, inviteToken: string, username: string, password: string) {
+  const response = await api<{ plan: SharedPlan }>('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'claimInvite', planId, inviteToken, username, password }),
+  });
+  return response.plan;
+}
+
+export async function createClaimInvite(planId: string, participantId: string) {
+  return api<{ plan: SharedPlan; inviteToken: string }>('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'mutate', planId, mutation: { type: 'createInvite', participantId } }),
+  });
+}
+
 export async function mutateSharedPlan(planId: string, mutation: PlanMutation) {
   const response = await api<{ plan: SharedPlan }>('/api/plans', {
     method: 'POST',
@@ -144,10 +160,24 @@ export function planIdFromLocation() {
   return new URLSearchParams(window.location.search).get('plan');
 }
 
+export function inviteTokenFromLocation() {
+  return new URLSearchParams(window.location.search).get('invite');
+}
+
 export function setPlanInLocation(planId?: string) {
   const url = new URL(window.location.href);
   if (planId) url.searchParams.set('plan', planId);
-  else url.searchParams.delete('plan');
+  else {
+    url.searchParams.delete('plan');
+    url.searchParams.delete('invite');
+  }
+  window.history.replaceState({}, '', url);
+}
+
+export function setInviteInLocation(inviteToken?: string) {
+  const url = new URL(window.location.href);
+  if (inviteToken) url.searchParams.set('invite', inviteToken);
+  else url.searchParams.delete('invite');
   window.history.replaceState({}, '', url);
 }
 
