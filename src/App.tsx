@@ -786,13 +786,7 @@ export default function App() {
           >
             GitHub<span className="sr-only"> (opens in a new tab)</span>
           </a>
-          <a
-            href="https://ko-fi.com/sycprojects"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Buy me a kopi<span className="sr-only"> on Ko-fi (opens in a new tab)</span>
-          </a>
+          <a href="/support">Support this project</a>
           <a href="/privacy.html">Privacy</a>
           <a href="/terms.html">Terms</a>
         </nav>
