@@ -254,6 +254,7 @@ elseif mutation.type == 'addMember' then
       participantNameMatches = participant.name == mutation.expectedParticipantName
       if participantNameMatches then participant.nameKey = mutation.member.usernameKey end
       break
+    end
   end
   if not participantFound then return {'PARTICIPANT_NOT_FOUND'} end
   if not participantNameMatches then return {'USERNAME_MISMATCH'} end
