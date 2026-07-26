@@ -625,6 +625,8 @@ export default function App() {
         </div>
       </header>
 
+      <div id="group-dialog-root" />
+
       <main className="planner-layout">
         <section className="planner-panel" aria-labelledby="planner-title">
           <div className="planner-intro">

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { SharedMember, SharedPlan } from '../lib/groupPlans';
 import './GroupPlanPanel.css';
 import './SharedPlanPanel.css';
@@ -89,6 +90,8 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
 
   useEffect(() => {
     if (!dialog) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     window.requestAnimationFrame(() => dialogRef.current?.focus());
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setDialog(null);
@@ -96,6 +99,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
       triggerRef.current?.focus();
     };
   }, [dialog]);
@@ -174,6 +178,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
 
   const combinedError = localError || props.error;
   const isAccessDialog = dialog === 'manage' && Boolean(props.plan) && !currentMember;
+  const dialogRoot = document.getElementById('group-dialog-root');
 
   return (
     <>
@@ -188,7 +193,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
         {props.plan ? <small>{currentMember ? props.syncLabel : 'View only'}</small> : null}
       </button>
 
-      {dialog ? (
+      {dialog && dialogRoot ? createPortal(
         <div className={`group-dialog-backdrop${isAccessDialog ? ' is-access' : ''}`} role="presentation" onMouseDown={closeDialog}>
           <section ref={dialogRef} tabIndex={-1} className={`group-dialog${isAccessDialog ? ' group-dialog-access' : ''}`} role="dialog" aria-modal="true" aria-labelledby="group-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className="group-dialog-close" type="button" aria-label="Close" onClick={closeDialog}>×</button>
@@ -329,7 +334,8 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
               </>
             )}
           </section>
-        </div>
+        </div>,
+        dialogRoot,
       ) : null}
     </>
   );
