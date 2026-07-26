@@ -2,6 +2,8 @@
 
 Meet Where Sia is a Singapore-focused meetup planner that finds a fair, practical meeting point for a group. Add where everyone starts—and, if needed, where they need to end—then compare recommendations by estimated MRT/LRT travel time or straight-line distance.
 
+**Live app:** [meet-where-sia.vercel.app](https://meet-where-sia.vercel.app)
+
 ![Meet Where Sia planner preview](docs/preview.png)
 
 ## Why use it?
