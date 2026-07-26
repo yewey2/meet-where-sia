@@ -60,7 +60,7 @@ test('cross-site writes are rejected before authentication or storage changes', 
   assert.equal(result.body.error, 'Cross-site request blocked.');
 });
 
-test('ordinary members cannot see another member email address', async () => {
+test('contributors cannot see the account list or owner email address', async () => {
   const handler = createPlansHandler({ store: new MemoryPlanStore() });
   const created = await invoke(handler, {
     body: {
@@ -83,9 +83,8 @@ test('ordinary members cannot see another member email address', async () => {
       planId,
       mutation: {
         type: 'addMember',
-        displayName: 'Friend',
-        email: 'friend-private@example.com',
-        temporaryPassword: 'friend private password',
+        participantId: participant.id,
+        temporaryPassword: 'friend6',
       },
     },
   });
@@ -94,13 +93,12 @@ test('ordinary members cannot see another member email address', async () => {
     body: {
       action: 'login',
       planId,
-      email: 'friend-private@example.com',
-      password: 'friend private password',
+      username: 'Owner',
+      password: 'friend6',
     },
   });
   assert.equal(loggedIn.status, 200);
-  const owner = loggedIn.body.plan.members.find((member) => member.role === 'owner');
-  const friend = loggedIn.body.plan.members.find((member) => member.role === 'member');
-  assert.equal(owner.email, undefined);
-  assert.equal(friend.email, 'friend-private@example.com');
+  assert.deepEqual(loggedIn.body.plan.members, []);
+  assert.equal(loggedIn.body.plan.currentMember.email, undefined);
+  assert.equal(loggedIn.body.plan.currentMember.participantId, participant.id);
 });

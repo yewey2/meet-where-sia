@@ -6,6 +6,8 @@ export interface SharedMember {
   id: string;
   displayName: string;
   email?: string;
+  username?: string;
+  participantId?: string;
   role: SharedMemberRole;
 }
 
@@ -17,7 +19,9 @@ export interface SharedPlan {
   createdAt: string;
   updatedAt: string;
   version: number;
-  currentMember: SharedMember & { email: string };
+  joiningEnabled: boolean;
+  memberCount: number;
+  currentMember: SharedMember | null;
   members: SharedMember[];
 }
 
@@ -28,7 +32,8 @@ export type PlanMutation =
   | { type: 'setMode'; mode: Mode }
   | { type: 'resetPlan'; participants: Participant[]; mode: Mode }
   | { type: 'renamePlan'; title: string }
-  | { type: 'addMember'; displayName: string; email: string; temporaryPassword: string }
+  | { type: 'setJoining'; enabled: boolean }
+  | { type: 'addMember'; participantId: string; temporaryPassword: string }
   | { type: 'resetMemberPassword'; memberId: string; temporaryPassword: string }
   | { type: 'removeMember'; memberId: string }
   | { type: 'changePassword'; password: string };
@@ -89,10 +94,26 @@ export async function createSharedPlan(input: {
   return response.plan;
 }
 
-export async function loginSharedPlan(planId: string, email: string, password: string) {
+export async function ownerLoginSharedPlan(planId: string, email: string, password: string) {
   const response = await api<{ plan: SharedPlan }>('/api/plans', {
     method: 'POST',
-    body: JSON.stringify({ action: 'login', planId, email, password }),
+    body: JSON.stringify({ action: 'ownerLogin', planId, email, password }),
+  });
+  return response.plan;
+}
+
+export async function loginSharedPlan(planId: string, username: string, password: string) {
+  const response = await api<{ plan: SharedPlan }>('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'login', planId, username, password }),
+  });
+  return response.plan;
+}
+
+export async function joinSharedPlan(planId: string, username: string, password: string) {
+  const response = await api<{ plan: SharedPlan }>('/api/plans', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'join', planId, username, password }),
   });
   return response.plan;
 }

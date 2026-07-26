@@ -3,7 +3,7 @@ import { ParticipantCard } from './components/ParticipantCard';
 import { MapPanel } from './components/MapPanel';
 import { ResultPanel } from './components/ResultPanel';
 import { ThemeToggle } from './components/ThemeToggle';
-import { GroupPlanPanel } from './components/GroupPlanPanel';
+import { SharedPlanPanel } from './components/SharedPlanPanel';
 import {
   MapPinIcon,
   PlusIcon,
@@ -244,8 +244,19 @@ export default function App() {
     mode,
     onRemotePlan: applyRemotePlan,
   });
+  const hasSharedLink = Boolean(shared.requestedPlanId);
+  const currentSharedMember = shared.plan?.currentMember ?? null;
+  const sharedOwner = currentSharedMember?.role === 'owner';
+  const canManagePlan = !hasSharedLink || sharedOwner;
+  const canEditParticipant = useCallback((participantId: string) => {
+    if (!hasSharedLink) return true;
+    if (!currentSharedMember) return false;
+    return currentSharedMember.role === 'owner' || currentSharedMember.participantId === participantId;
+  }, [currentSharedMember, hasSharedLink]);
+
 
   useEffect(() => {
+    if (hasSharedLink) return;
     try {
       localStorage.setItem(
         STORAGE_KEY,
@@ -254,7 +265,7 @@ export default function App() {
     } catch {
       // The planner still works when storage is blocked (for example, private embeds).
     }
-  }, [mode, participants]);
+  }, [hasSharedLink, mode, participants]);
 
   useEffect(() => {
     if (!hasGoogleKey) return;
@@ -334,6 +345,7 @@ export default function App() {
   }, [isCalculating, result]);
 
   function updateParticipant(next: Participant) {
+    if (!canEditParticipant(next.id)) return;
     setParticipants((current) =>
       current.map((participant) =>
         participant.id === next.id ? next : participant,
@@ -345,6 +357,7 @@ export default function App() {
   }
 
   function addParticipant() {
+    if (!canManagePlan) return;
     const next = createParticipant();
     setParticipants((current) => [...current, next]);
     void shared.addParticipant(next).catch(() => undefined);
@@ -352,8 +365,9 @@ export default function App() {
   }
 
   function loadExample() {
-    if (shared.plan && !window.confirm('Replace the shared plan with the sample routes for everyone?')) return;
+    if (shared.plan && !window.confirm('Replace every route and remove contributor logins from this shared plan?')) return;
 
+    if (!canManagePlan) return;
     const nextParticipants = [
       {
         id: createId('person'),
@@ -378,8 +392,9 @@ export default function App() {
   }
 
   function resetPlanner() {
-    if (shared.plan && !window.confirm('Clear this shared plan for everyone?')) return;
+    if (shared.plan && !window.confirm('Clear every route and remove contributor logins from this shared plan?')) return;
 
+    if (!canManagePlan) return;
     const nextParticipants = [createParticipant()];
     setParticipants(nextParticipants);
     setMode('rail');
@@ -477,7 +492,9 @@ export default function App() {
 
       setParticipants(resolvedParticipants);
       if (shared.plan) {
-        resolvedParticipants.forEach(shared.scheduleParticipant);
+        resolvedParticipants
+          .filter((participant) => canEditParticipant(participant.id))
+          .forEach(shared.scheduleParticipant);
       }
 
       if (mode === 'distance') {
@@ -567,22 +584,30 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-actions">
-          <GroupPlanPanel
+          <SharedPlanPanel
             plan={shared.plan}
-            requestedPlanId={shared.requestedPlanId}
-            accessRequired={shared.accessRequired}
             busy={shared.busy}
             syncLabel={shared.syncLabel}
             error={shared.error}
-            onCreate={(input) => shared.create(input).catch(() => undefined)}
-            onLogin={(email, password) => shared.login(email, password).catch(() => undefined)}
+            onCreate={shared.create}
+            onLogin={shared.login}
+            onJoin={shared.join}
+            onOwnerLogin={shared.ownerLogin}
             onRename={async (title) => { await shared.rename(title); }}
+            onSetJoining={async (enabled) => { await shared.setJoining(enabled); }}
             onAddMember={async (input) => { await shared.addMember(input); }}
             onResetMember={async (memberId, password) => { await shared.resetMember(memberId, password); }}
             onRemoveMember={async (member) => { await shared.removeMember(member.id); }}
             onChangePassword={async (password) => { await shared.changePassword(password); }}
             onLogout={shared.logout}
-            onDelete={shared.deletePlan}
+            onDelete={async () => {
+              await shared.deletePlan();
+              const localPlan = loadSavedState();
+              setParticipants(localPlan.participants);
+              setMode(localPlan.mode);
+              setResult(null);
+              setGlobalError('');
+            }}
             onDismissError={shared.dismissError}
           />
           <ThemeToggle />
@@ -603,7 +628,7 @@ export default function App() {
                 <div className="section-label"><UsersIcon /> Who’s meeting?</div>
                 <p>{participants.length} {participants.length === 1 ? 'person' : 'people'} added</p>
               </div>
-              <button type="button" className="text-button" onClick={loadExample}>
+              <button type="button" className="text-button" disabled={!canManagePlan} onClick={loadExample}>
                 Use sample
               </button>
             </div>
@@ -615,7 +640,9 @@ export default function App() {
                   participant={participant}
                   index={index}
                   stations={stations}
-                  canRemove={participants.length > 1}
+                  canRemove={canManagePlan && participants.length > 1}
+                  canEditName={canManagePlan}
+                  readOnly={!canEditParticipant(participant.id)}
                   onChange={updateParticipant}
                   onRemove={() => {
                     setParticipants((current) =>
@@ -629,9 +656,11 @@ export default function App() {
               ))}
             </div>
 
-            <button type="button" className="add-person-button" onClick={addParticipant}>
-              <PlusIcon /> Add a friend
-            </button>
+            {canManagePlan ? (
+              <button type="button" className="add-person-button" onClick={addParticipant}>
+                <PlusIcon /> Add a friend
+              </button>
+            ) : null}
           </div>
 
           <details className="mode-disclosure">
@@ -643,7 +672,7 @@ export default function App() {
                   <small>{modeDescription}</small>
                 </span>
               </span>
-              <span className="mode-change-label">Change</span>
+              <span className="mode-change-label">{canManagePlan ? 'Change' : 'View'}</span>
             </summary>
             <div className="mode-section">
               <fieldset className="mode-switch">
@@ -654,6 +683,7 @@ export default function App() {
                     name="meeting-mode"
                     value="rail"
                     checked={mode === 'rail'}
+                    disabled={!canManagePlan}
                     onChange={() => {
                       setMode('rail');
                       void shared.setMode('rail').catch(() => undefined);
@@ -670,6 +700,7 @@ export default function App() {
                     name="meeting-mode"
                     value="distance"
                     checked={mode === 'distance'}
+                    disabled={!canManagePlan}
                     onChange={() => {
                       setMode('distance');
                       void shared.setMode('distance').catch(() => undefined);
@@ -713,8 +744,8 @@ export default function App() {
           ) : null}
 
           <div className="planner-footnote">
-            <span>{shared.plan ? `Shared with ${shared.plan.members.length} ${shared.plan.members.length === 1 ? 'person' : 'people'} · ${shared.syncLabel}` : 'Plan saved on this device'}</span>
-            <button type="button" onClick={resetPlanner}>Clear plan</button>
+            <span>{shared.plan ? `${shared.plan.memberCount} ${shared.plan.memberCount === 1 ? 'editor' : 'editors'} · ${currentSharedMember ? shared.syncLabel : 'Public view'}` : 'Plan saved on this device'}</span>
+            {canManagePlan ? <button type="button" onClick={resetPlanner}>Clear plan</button> : null}
           </div>
         </section>
 

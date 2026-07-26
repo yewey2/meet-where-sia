@@ -25,12 +25,12 @@
       <a class="back" href="/">← Back to Meet Where Sia</a>
       <h1>Privacy</h1>
       <p class="updated">Last updated 26 July 2026</p>
-      <p>Meet Where Sia is a meeting-point planning tool. You can use a local plan without an account, or create a private shared plan for a group.</p>
+      <p>Meet Where Sia is a meeting-point planning tool. You can use a local plan without an account, or create a shared plan that anyone with its link can view.</p>
       <h2>Local plans</h2>
       <p>Names and locations entered into a local plan are stored in your browser’s local storage so the plan can be restored on the same device. Clearing the plan removes that browser copy.</p>
       <h2>Shared plans</h2>
-      <p>When you create or join a shared plan, the app stores the plan name, participant names and locations, member names and email addresses, roles, update times and password hashes in a managed Redis database. Plaintext passwords are not stored. A secure, HTTP-only session cookie keeps you signed in for up to 30 days.</p>
-      <p>Plan members can view and edit the plan. The owner can view member email addresses, add or remove members, reset member passwords and permanently delete the shared plan. Other members see names and roles but not one another’s email addresses. Removing a member blocks that member’s existing session from the plan.</p>
+      <p>When you create or join a shared plan, the app stores the plan name, participant names and locations, contributor usernames, roles, update times and password hashes in a managed Redis database. Only the owner provides an email address. Plaintext passwords are not stored. A secure, HTTP-only session cookie keeps editors signed in for up to 30 days.</p>
+      <p>Anyone with a shared-plan link can view its participant names and locations without logging in. Contributors can edit only their assigned participant. The owner can manage all participants and contributor accounts, reset passwords and permanently delete the plan. Removing access blocks that contributor’s existing session from making changes.</p>
       <h2>Map and location services</h2>
       <p>When Google features are enabled, searches and map requests are sent to Google Maps Platform so that addresses, suggestions, coordinates and map tiles can be returned. Google processes this information under the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>. When the backup map is used, map tile requests are sent to OpenStreetMap.</p>
       <h2>Service providers and logs</h2>

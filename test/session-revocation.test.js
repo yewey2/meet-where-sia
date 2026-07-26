@@ -29,7 +29,7 @@ test('an owner password reset immediately revokes the member session', async () 
   const handler = createPlansHandler({ store: new MemoryPlanStore() });
   const participant = {
     id: 'person_session_test',
-    name: 'Owner',
+    name: 'Friend',
     sameAsStart: true,
     start: { query: 'Eunos MRT', status: 'empty' },
     end: { query: 'Eunos MRT', status: 'empty' },
@@ -48,16 +48,14 @@ test('an owner password reset immediately revokes the member session', async () 
     body: {
       action: 'mutate', planId,
       mutation: {
-        type: 'addMember', displayName: 'Friend', email: 'friend-reset@example.com',
-        temporaryPassword: 'original friend password',
+        type: 'addMember', participantId: participant.id, temporaryPassword: 'friend6',
       },
     },
   });
   const memberId = added.body.plan.members.find((member) => member.role === 'member').id;
   const login = await invoke(handler, {
     body: {
-      action: 'login', planId, email: 'friend-reset@example.com',
-      password: 'original friend password',
+      action: 'login', planId, username: 'Friend', password: 'friend6',
     },
   });
   const oldCookie = cookie(login);
@@ -68,7 +66,7 @@ test('an owner password reset immediately revokes the member session', async () 
       action: 'mutate', planId,
       mutation: {
         type: 'resetMemberPassword', memberId,
-        temporaryPassword: 'replacement friend password',
+        temporaryPassword: 'newpass6',
       },
     },
   });
@@ -79,13 +77,24 @@ test('an owner password reset immediately revokes the member session', async () 
     url: `/api/plans?planId=${planId}`,
     cookie: oldCookie,
   });
-  assert.equal(stale.status, 401);
-  assert.equal(stale.body.code, 'AUTH_REQUIRED');
+  assert.equal(stale.status, 200);
+  assert.equal(stale.body.plan.currentMember, null);
+
+  const denied = await invoke(handler, {
+    cookie: oldCookie,
+    body: {
+      action: 'mutate', planId,
+      mutation: {
+        type: 'updateParticipant',
+        participant: { ...participant, start: { query: 'Bedok MRT', status: 'empty' } },
+      },
+    },
+  });
+  assert.equal(denied.status, 401);
 
   const relogin = await invoke(handler, {
     body: {
-      action: 'login', planId, email: 'friend-reset@example.com',
-      password: 'replacement friend password',
+      action: 'login', planId, username: 'Friend', password: 'newpass6',
     },
   });
   assert.equal(relogin.status, 200);

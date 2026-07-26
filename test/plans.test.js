@@ -85,6 +85,7 @@ test('Upstash credentials must be a matched writable pair', () => {
 test('an owner can create, manage, share, edit, and delete a plan', async () => {
   const store = new MemoryPlanStore();
   const handler = createPlansHandler({ store });
+  const friendParticipant = { ...participant, id: 'person_test_2', name: 'Ben' };
 
   const created = await request(handler, {
     method: 'POST',
@@ -94,7 +95,7 @@ test('an owner can create, manage, share, edit, and delete a plan', async () => 
       displayName: 'Aisha',
       email: 'aisha@example.com',
       password: 'owner password 123',
-      participants: [participant],
+      participants: [participant, friendParticipant],
       mode: 'rail',
     },
   });
@@ -113,23 +114,22 @@ test('an owner can create, manage, share, edit, and delete a plan', async () => 
       planId,
       mutation: {
         type: 'addMember',
-        displayName: 'Ben',
-        email: 'ben@example.com',
-        temporaryPassword: 'temporary ben 123',
+        participantId: friendParticipant.id,
+        temporaryPassword: 'ben123',
       },
     },
   });
   assert.equal(addedMember.status, 200);
   assert.equal(addedMember.body.plan.members.length, 2);
-  assert.equal(addedMember.body.plan.members[1].email, 'ben@example.com');
+  assert.equal(addedMember.body.plan.members[1].username, 'Ben');
 
   const login = await request(handler, {
     method: 'POST',
     body: {
       action: 'login',
       planId,
-      email: 'ben@example.com',
-      password: 'temporary ben 123',
+      username: '  ben ',
+      password: 'ben123',
     },
   });
   assert.equal(login.status, 200);
@@ -137,8 +137,8 @@ test('an owner can create, manage, share, edit, and delete a plan', async () => 
   const memberCookie = cookiePair(login.headers.get('set-cookie'));
 
   const updatedParticipant = {
-    ...participant,
-    name: 'Aisha (Tampines)',
+    ...friendParticipant,
+    name: 'Attempted rename',
     start: { query: 'Tampines MRT', status: 'empty' },
     end: { query: 'Tampines MRT', status: 'empty' },
   };
@@ -152,7 +152,8 @@ test('an owner can create, manage, share, edit, and delete a plan', async () => 
     },
   });
   assert.equal(edited.status, 200);
-  assert.equal(edited.body.plan.participants[0].name, 'Aisha (Tampines)');
+  assert.equal(edited.body.plan.participants[1].name, 'Ben');
+  assert.equal(edited.body.plan.participants[1].start.query, 'Tampines MRT');
 
   const forbidden = await request(handler, {
     method: 'POST',
@@ -184,7 +185,8 @@ test('an owner can create, manage, share, edit, and delete a plan', async () => 
     cookie: memberCookie,
     url: `/api/plans?planId=${planId}`,
   });
-  assert.equal(staleSession.status, 403);
+  assert.equal(staleSession.status, 200);
+  assert.equal(staleSession.body.plan.currentMember, null);
 
   const deleted = await request(handler, {
     method: 'POST',
@@ -250,7 +252,7 @@ test('sign-in attempts are rate limited', async () => {
   for (let attempt = 0; attempt < 9; attempt += 1) {
     result = await request(handler, {
       method: 'POST',
-      body: { action: 'login', planId, email: 'owner@example.com', password: 'not the password' },
+      body: { action: 'ownerLogin', planId, email: 'owner@example.com', password: 'not the password' },
     });
   }
   assert.equal(result.status, 429);

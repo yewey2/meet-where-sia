@@ -19,10 +19,11 @@ As of 26 July 2026, the Upstash free plan includes 256 MB and 500,000 commands p
 ## How access works
 
 - The plan creator is the owner.
-- The owner adds each friend's name and email and assigns a temporary password of at least 10 characters.
-- Share the plan link and temporary password privately (different password per person).
-- Each friend signs in using their own email and can change their password.
-- The owner can rename or delete the plan, add/remove friends, and reset a friend's password.
-- Passwords are salted scrypt hashes; plaintext passwords are never stored.
+- Anyone with the shared link can view participant names and locations without signing in.
+- Friends can join with a username and password of at least 6 characters; joining creates exactly one participant that only they can edit.
+- If the owner already added a participant, the owner can explicitly attach a username and temporary password to that participant.
+- Friends never need to provide an email address.
+- The owner can rename or delete the plan, add/remove participants, open or close self-joining, create/remove contributor access, and reset passwords.
+- Passwords remain salted scrypt hashes; plaintext passwords are never stored.
 
-There is deliberately no "password based on email" rule because such passwords are predictable. There is also no email-sending or password-reset provider; owner-managed temporary passwords keep the service footprint to Vercel plus one managed Redis integration.
+A shared link is intentionally a public read-only link, so it should stay within the intended group. Prefer MRT stations or approximate locations rather than home addresses. There is no email-sending or password-reset provider; owner-managed temporary passwords keep the service footprint to Vercel plus one managed Redis integration.

@@ -8,6 +8,8 @@ interface ParticipantCardProps {
   stations: MrtStation[];
   canRemove: boolean;
   onChange: (next: Participant) => void;
+  canEditName: boolean;
+  readOnly: boolean;
   onRemove: () => void;
 }
 
@@ -18,6 +20,8 @@ export function ParticipantCard({
   canRemove,
   onChange,
   onRemove,
+  canEditName,
+  readOnly,
 }: ParticipantCardProps) {
   const displayName = participant.name.trim() || `Person ${index + 1}`;
   const namePlaceholder = index === 0 ? 'You' : `Friend ${index + 1}`;
@@ -32,6 +36,7 @@ export function ParticipantCard({
           <label htmlFor={`${participant.id}-name`}>Name <span>(optional)</span></label>
           <input
             id={`${participant.id}-name`}
+            disabled={!canEditName}
             type="text"
             value={participant.name}
             placeholder={namePlaceholder}
@@ -45,7 +50,7 @@ export function ParticipantCard({
           className="icon-button remove-person"
           aria-label={`Remove ${displayName}`}
           title={`Remove ${displayName}`}
-          disabled={!canRemove}
+          disabled={readOnly || !canRemove}
           onClick={onRemove}
         >
           <TrashIcon />
@@ -72,6 +77,7 @@ export function ParticipantCard({
             value={participant.start}
             placeholder="MRT/LRT, landmark or 6-digit postal code"
             stations={stations}
+            disabled={readOnly}
             onChange={(start) =>
               onChange({
                 ...participant,
@@ -84,6 +90,7 @@ export function ParticipantCard({
           <label className="same-location-control">
             <input
               type="checkbox"
+              disabled={readOnly}
               checked={!participant.sameAsStart}
               onChange={(event) => {
                 const sameAsStart = !event.target.checked;
@@ -108,6 +115,7 @@ export function ParticipantCard({
               value={participant.end}
               placeholder="MRT/LRT, landmark or 6-digit postal code"
               stations={stations}
+              disabled={readOnly}
               onChange={(end) => onChange({ ...participant, end })}
             />
           ) : null}
