@@ -1,4 +1,5 @@
 import express from 'express';
+import { createPlansHandler, MemoryPlanStore } from '../api/_plans-core.js';
 import {
   getHealthPayload,
   loadNearbyPlaces,
@@ -7,6 +8,7 @@ import {
 } from './services.mjs';
 
 const app = express();
+const localSharedPlanStore = new MemoryPlanStore();
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '100kb' }));
@@ -62,6 +64,8 @@ app.get('/api/lta/train-alerts', async (_request, response) => {
   );
   response.json(await loadTrainAlerts());
 });
+
+app.all('/api/plans', createPlansHandler({ store: localSharedPlanStore }));
 
 app.use((error, _request, response, _next) => {
   console.error(error);

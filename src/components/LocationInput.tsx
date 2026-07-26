@@ -282,7 +282,7 @@ export function LocationInput({
           type="text"
           value={value.query}
           disabled={disabled}
-          placeholder={placeholder}
+          placeholder={hasApiKey ? placeholder : 'MRT/LRT station'}
           autoComplete="off"
           spellCheck={false}
           role="combobox"

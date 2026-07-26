@@ -206,6 +206,7 @@ elseif mutation.type == 'resetMemberPassword' then
   for _, member in ipairs(plan.members) do
     if member.id == mutation.memberId and member.role ~= 'owner' then
       member.passwordHash = mutation.passwordHash
+      member.authVersion = (member.authVersion or 1) + 1
       changed = true
       break
     end
@@ -221,6 +222,7 @@ elseif mutation.type == 'removeMember' then
   plan.members = nextMembers
 elseif mutation.type == 'changePassword' then
   actor.passwordHash = mutation.passwordHash
+  actor.authVersion = (actor.authVersion or 1) + 1
 else
   return {'INVALID_MUTATION'}
 end
@@ -272,6 +274,11 @@ export class UpstashPlanStore {
     return result ? JSON.parse(result) : null;
   }
 
+  async getMany(keys) {
+    const result = await this.command(['MGET', ...keys]);
+    return result.map((value) => value ? JSON.parse(value) : null);
+  }
+
   set(key, value, options = []) {
     return this.command(['SET', key, JSON.stringify(value), ...options]);
   }
@@ -310,6 +317,7 @@ export class MemoryPlanStore {
   constructor() {
     this.values = new Map();
     this.rates = new Map();
+    this.mutationQueues = new Map();
   }
 
   async get(key) {
@@ -320,6 +328,10 @@ export class MemoryPlanStore {
       return null;
     }
     return structuredClone(entry.value);
+  }
+
+  getMany(keys) {
+    return Promise.all(keys.map((key) => this.get(key)));
   }
 
   async set(key, value, options = []) {
@@ -336,6 +348,13 @@ export class MemoryPlanStore {
   }
 
   async mutate(planId, actorId, mutation) {
+    const previous = this.mutationQueues.get(planId) || Promise.resolve();
+    const operation = previous.then(() => this.applyMutation(planId, actorId, mutation));
+    this.mutationQueues.set(planId, operation.catch(() => undefined));
+    return operation;
+  }
+
+  async applyMutation(planId, actorId, mutation) {
     const key = `${PLAN_PREFIX}${planId}`;
     const plan = await this.get(key);
     if (!plan) return { code: 'NOT_FOUND' };
@@ -402,12 +421,14 @@ function applyMemoryMutation(plan, actor, mutation) {
     const member = plan.members.find((item) => item.id === mutation.memberId && item.role !== 'owner');
     if (!member) return 'MEMBER_NOT_FOUND';
     member.passwordHash = mutation.passwordHash;
+    member.authVersion = (member.authVersion || 1) + 1;
   } else if (mutation.type === 'removeMember') {
     const length = plan.members.length;
     plan.members = plan.members.filter((item) => item.id !== mutation.memberId || item.role === 'owner');
     if (length === plan.members.length) return 'MEMBER_NOT_FOUND';
   } else if (mutation.type === 'changePassword') {
     actor.passwordHash = mutation.passwordHash;
+    actor.authVersion = (actor.authVersion || 1) + 1;
   } else {
     return 'INVALID_MUTATION';
   }
@@ -482,23 +503,28 @@ function planIdFrom(value) {
   return planId;
 }
 
-async function createSession(store, request, response, planId, memberId) {
+async function createSession(store, request, response, planId, memberId, authVersion = 1) {
   const token = id(32);
-  await store.set(`${SESSION_PREFIX}${digest(token)}`, { planId, memberId }, ['EX', SESSION_SECONDS]);
+  await store.set(`${SESSION_PREFIX}${digest(token)}`, { planId, memberId, authVersion }, ['EX', SESSION_SECONDS]);
   response.setHeader('Set-Cookie', sessionCookie(request, planId, token));
 }
 
 async function authenticate(store, request, planId) {
   const token = parseCookies(request)[cookieName(planId)];
   if (!token) throw new ClientError(401, 'Sign in to open this shared plan.', 'AUTH_REQUIRED');
-  const session = await store.get(`${SESSION_PREFIX}${digest(token)}`);
+  const [session, plan] = await store.getMany([
+    `${SESSION_PREFIX}${digest(token)}`,
+    `${PLAN_PREFIX}${planId}`,
+  ]);
   if (!session || session.planId !== planId) {
     throw new ClientError(401, 'Your session expired. Sign in again.', 'AUTH_REQUIRED');
   }
-  const plan = await store.get(`${PLAN_PREFIX}${planId}`);
   if (!plan) throw new ClientError(404, 'This shared plan no longer exists.', 'NOT_FOUND');
   const member = plan.members.find((item) => item.id === session.memberId);
   if (!member) throw new ClientError(403, 'You no longer have access to this plan.', 'ACCESS_REMOVED');
+  if ((member.authVersion || 1) !== (session.authVersion || 1)) {
+    throw new ClientError(401, 'Your password changed. Sign in again.', 'AUTH_REQUIRED');
+  }
   return { session, plan, member };
 }
 
@@ -567,7 +593,7 @@ async function validateMutation(input) {
       const displayName = cleanText(input.displayName, 80);
       if (!displayName) throw new ClientError(400, 'Member name is required.');
       const passwordHash = await hashPassword(validatePassword(input.temporaryPassword, 'Temporary password'));
-      return { type: input.type, member: { id: id(10), email, displayName, role: 'member', passwordHash }, updatedAt };
+      return { type: input.type, member: { id: id(10), email, displayName, role: 'member', passwordHash, authVersion: 1 }, updatedAt };
     }
     case 'resetMemberPassword':
       return {
@@ -610,6 +636,12 @@ export function createPlansHandler({ store: injectedStore } = {}) {
       checkOrigin(request);
       const body = await readBody(request);
       if (body.action === 'create') {
+        const limited = await store.hitRateLimit(
+          digest(`create:${clientIp(request)}`),
+          60 * 60,
+          20,
+        );
+        if (limited) throw new ClientError(429, 'Too many plans were created from this connection. Try again later.');
         const email = normalizeEmail(body.email);
         const displayName = cleanText(body.displayName, 80);
         const title = cleanText(body.title, 100);
@@ -617,7 +649,7 @@ export function createPlansHandler({ store: injectedStore } = {}) {
         if (!title) throw new ClientError(400, 'Plan name is required.');
         const passwordHash = await hashPassword(validatePassword(body.password));
         const now = new Date().toISOString();
-        const owner = { id: id(10), email, displayName, role: 'owner', passwordHash };
+        const owner = { id: id(10), email, displayName, role: 'owner', passwordHash, authVersion: 1 };
         const participants = validateParticipants(body.participants);
         let plan;
         for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -637,7 +669,7 @@ export function createPlansHandler({ store: injectedStore } = {}) {
           plan = null;
         }
         if (!plan) throw new ClientError(503, 'Could not reserve a shared-plan link. Try again.');
-        await createSession(store, request, response, plan.id, owner.id);
+        await createSession(store, request, response, plan.id, owner.id, owner.authVersion);
         return json(response, 201, { plan: publicPlan(plan, owner) });
       }
 
@@ -652,9 +684,14 @@ export function createPlansHandler({ store: injectedStore } = {}) {
         if (limited) throw new ClientError(429, 'Too many sign-in attempts. Try again in 15 minutes.');
         const plan = await store.get(`${PLAN_PREFIX}${planId}`);
         const member = plan?.members.find((item) => item.email === email);
-        const passwordValid = member && await verifyPassword(String(body.password || ''), member.passwordHash);
+        let passwordValid = false;
+        if (member) {
+          passwordValid = await verifyPassword(String(body.password || ''), member.passwordHash);
+        } else {
+          await hashPassword(String(body.password || '').padEnd(PASSWORD_MIN_LENGTH, ' '));
+        }
         if (!passwordValid) throw new ClientError(401, 'Email or password is incorrect.');
-        await createSession(store, request, response, planId, member.id);
+        await createSession(store, request, response, planId, member.id, member.authVersion || 1);
         return json(response, 200, { plan: publicPlan(plan, member) });
       }
 
@@ -678,6 +715,9 @@ export function createPlansHandler({ store: injectedStore } = {}) {
       const result = await store.mutate(planId, session.memberId, mutation);
       if (result.code !== 'OK') throw mutationError(result.code);
       const currentMember = result.plan.members.find((item) => item.id === member.id);
+      if (mutation.type === 'changePassword') {
+        await createSession(store, request, response, planId, currentMember.id, currentMember.authVersion);
+      }
       return json(response, 200, { plan: publicPlan(result.plan, currentMember) });
     } catch (error) {
       if (error instanceof ClientError) {

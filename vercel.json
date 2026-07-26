@@ -12,6 +12,9 @@
     "api/nearby.js": {
       "maxDuration": 30
     },
+    "api/plans.js": {
+      "maxDuration": 15
+    },
     "api/lta/train-alerts.js": {
       "maxDuration": 15
     }

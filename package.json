@@ -13,7 +13,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "start": "node server/local.js",
-    "check": "tsc -b --pretty false"
+    "check": "tsc -b --pretty false",
+    "test": "node --test"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

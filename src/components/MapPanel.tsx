@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { EndpointPoint, MeetingResult } from '../types';
+import type { EndpointPoint, MeetingResult, RankedStation } from '../types';
 import { getGoogleMapsApiKey } from '../lib/googleMaps';
 import {
   createGoogleMapTilesSession,
@@ -13,6 +13,7 @@ import { SINGAPORE_CENTER } from '../lib/location';
 interface MapPanelProps {
   points: EndpointPoint[];
   result: MeetingResult | null;
+  onSelectStation: (station: RankedStation) => void;
 }
 
 type MarkerKind = 'start' | 'end' | 'result' | 'alternative';
@@ -73,7 +74,7 @@ function addOpenStreetMapLayer(map: L.Map) {
   }).addTo(map);
 }
 
-export function MapPanel({ points, result }: MapPanelProps) {
+export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
   const apiKey = useMemo(getGoogleMapsApiKey, []);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | undefined>(undefined);
@@ -229,29 +230,40 @@ export function MapPanel({ points, result }: MapPanelProps) {
       bounds.extend([result.lat, result.lng]);
 
       if (result.mode === 'rail') {
-        for (const alternative of result.alternatives.slice(1, 4)) {
-          L.marker([alternative.lat, alternative.lng], {
-            alt: `Alternative: ${alternative.name} ${alternative.network}`,
+        for (const alternative of result.alternatives
+          .filter((station) => station.id !== result.station.id)
+          .slice(0, 3)) {
+          const marker = L.marker([alternative.lat, alternative.lng], {
+            alt: `Choose alternative: ${alternative.name} ${alternative.network}`,
             icon: leafletMarkerIcon('alternative', 'M'),
-            keyboard: true,
-            title: `${alternative.name} ${alternative.network}`,
+            keyboard: false,
+            title: `Choose ${alternative.name} ${alternative.network}`,
             zIndexOffset: 200,
           }).addTo(overlays);
+          marker.on('click', () => onSelectStation(alternative));
           bounds.extend([alternative.lat, alternative.lng]);
         }
       }
     }
 
+    const reduceMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
     map.invalidateSize({ pan: false });
     if (bounds.isValid()) {
       map.fitBounds(bounds, {
+        animate: !reduceMotion,
         maxZoom: 15,
         padding: [68, 68],
       });
     } else {
-      map.setView([SINGAPORE_CENTER.lat, SINGAPORE_CENTER.lng], 11);
+      map.setView(
+        [SINGAPORE_CENTER.lat, SINGAPORE_CENTER.lng],
+        11,
+        { animate: !reduceMotion },
+      );
     }
-  }, [isReady, points, result]);
+  }, [isReady, onSelectStation, points, result]);
 
   return (
     <div className="map-wrap">

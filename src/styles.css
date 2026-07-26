@@ -3419,3 +3419,130 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Result interaction follow-up */
+
+html {
+  scroll-behavior: smooth;
+}
+
+#meeting-result {
+  scroll-margin-top: 78px;
+}
+
+.planner-footnote > button {
+  flex: 0 0 auto;
+}
+
+.app-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 76px;
+  padding: 14px clamp(18px, 3vw, 44px);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--surface-glass);
+}
+
+.app-footer > div {
+  display: grid;
+  gap: 3px;
+}
+
+.app-footer strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.app-footer span {
+  color: var(--soft-muted);
+  font-size: 12px;
+}
+
+.app-footer nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-footer a:hover {
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+}
+
+button.alternative-row {
+  width: 100%;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+
+button.alternative-row:hover {
+  color: var(--ink);
+  background: var(--surface-alt);
+}
+
+button.alternative-row:active {
+  background: var(--accent-soft);
+}
+
+button.alternative-row:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline-offset: -3px;
+}
+
+.result-title-row h2:focus-visible {
+  border-radius: 5px;
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.alternative-duration {
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .alternative-duration {
+    font-size: 12px;
+  }
+
+  #meeting-result {
+    scroll-margin-top: 70px;
+  }
+
+  .app-footer {
+    align-items: flex-start;
+    min-height: 0;
+    padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .app-footer > div span {
+    display: none;
+  }
+
+  .app-footer nav {
+    margin-top: -5px;
+  }
+}

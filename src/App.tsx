@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ParticipantCard } from './components/ParticipantCard';
 import { MapPanel } from './components/MapPanel';
 import { ResultPanel } from './components/ResultPanel';
 import { ThemeToggle } from './components/ThemeToggle';
+import { GroupPlanPanel } from './components/GroupPlanPanel';
 import {
   MapPinIcon,
   PlusIcon,
@@ -32,6 +33,8 @@ import {
   parseSingaporeCoordinate,
   rankStationsByTravelTime,
 } from './lib/railGraph';
+import { useSharedPlan } from './lib/useSharedPlan';
+import type { SharedPlan } from './lib/groupPlans';
 import type {
   EndpointPoint,
   LocationValue,
@@ -39,6 +42,7 @@ import type {
   Mode,
   MrtStation,
   Participant,
+  RankedStation,
   TrainAlertPayload,
 } from './types';
 
@@ -224,8 +228,22 @@ export default function App() {
   const [trainAlerts, setTrainAlerts] = useState<TrainAlertPayload | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [globalError, setGlobalError] = useState('');
+  const autoScrolledResultRef = useRef<MeetingResult | null>(null);
   const hasGoogleKey = Boolean(getGoogleMapsApiKey());
   const mapPoints = useMemo(() => buildEndpointPoints(participants), [participants]);
+
+  const applyRemotePlan = useCallback((plan: SharedPlan) => {
+    setParticipants(plan.participants);
+    setMode(plan.mode);
+    setResult(null);
+    setGlobalError('');
+  }, []);
+
+  const shared = useSharedPlan({
+    participants,
+    mode,
+    onRemotePlan: applyRemotePlan,
+  });
 
   useEffect(() => {
     try {
@@ -283,21 +301,37 @@ export default function App() {
   }, [mode, stationLoadError, stations.length]);
 
   useEffect(() => {
-    if (!result || !window.matchMedia('(max-width: 820px)').matches) return;
+    if (!result) {
+      autoScrolledResultRef.current = null;
+      return;
+    }
+    if (
+      isCalculating ||
+      autoScrolledResultRef.current ||
+      !window.matchMedia('(max-width: 960px)').matches
+    ) return;
+
+    autoScrolledResultRef.current = result;
+    let settledFrame = 0;
     const frame = window.requestAnimationFrame(() => {
-      const target = document.getElementById('meeting-result');
-      if (!target) return;
-      const reduceMotion = window.matchMedia(
-        '(prefers-reduced-motion: reduce)',
-      ).matches;
-      if (reduceMotion) return;
-      target.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
+      settledFrame = window.requestAnimationFrame(() => {
+        const target = document.getElementById('meeting-result');
+        if (!target) return;
+        const reduceMotion = window.matchMedia(
+          '(prefers-reduced-motion: reduce)',
+        ).matches;
+        if (reduceMotion) return;
+        target.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
       });
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [result]);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(settledFrame);
+    };
+  }, [isCalculating, result]);
 
   function updateParticipant(next: Participant) {
     setParticipants((current) =>
@@ -305,20 +339,22 @@ export default function App() {
         participant.id === next.id ? next : participant,
       ),
     );
+    shared.scheduleParticipant(next);
     setResult(null);
     setGlobalError('');
   }
 
   function addParticipant() {
-    setParticipants((current) => [
-      ...current,
-      createParticipant(`Person ${current.length + 1}`),
-    ]);
+    const next = createParticipant(`Person ${participants.length + 1}`);
+    setParticipants((current) => [...current, next]);
+    void shared.addParticipant(next).catch(() => undefined);
     setResult(null);
   }
 
   function loadExample() {
-    setParticipants([
+    if (shared.plan && !window.confirm('Replace the shared plan with the sample routes for everyone?')) return;
+
+    const nextParticipants = [
       {
         id: createId('person'),
         name: 'Aisha',
@@ -333,19 +369,46 @@ export default function App() {
         start: emptyLocation('Eunos MRT'),
         end: emptyLocation('Eunos MRT'),
       },
-    ]);
+    ];
+    setParticipants(nextParticipants);
     setMode('rail');
+    void shared.resetPlan(nextParticipants, 'rail').catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
 
   function resetPlanner() {
-    setParticipants([createParticipant()]);
+    if (shared.plan && !window.confirm('Clear this shared plan for everyone?')) return;
+
+    const nextParticipants = [createParticipant()];
+    setParticipants(nextParticipants);
     setMode('rail');
+    void shared.resetPlan(nextParticipants, 'rail').catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
 
+  const selectMeetingStation = useCallback((station: RankedStation) => {
+    setResult((current) => {
+      if (!current || current.mode !== 'rail' || current.station.id === station.id) {
+        return current;
+      }
+
+      return {
+        ...current,
+        lat: station.lat,
+        lng: station.lng,
+        title: `${station.name} ${station.network}`,
+        station,
+        totalKm: station.totalKm,
+        averageKm: station.averageKm,
+        maxKm: station.maxKm,
+        totalMinutes: station.totalMinutes,
+        averageMinutes: station.averageMinutes,
+        maxMinutes: station.maxMinutes,
+      };
+    });
+  }, []);
   async function ensureStations(): Promise<MrtStation[]> {
     if (stations.length) return stations;
     const response = await fetchMrtStations();
@@ -413,6 +476,9 @@ export default function App() {
       }
 
       setParticipants(resolvedParticipants);
+      if (shared.plan) {
+        resolvedParticipants.forEach(shared.scheduleParticipant);
+      }
 
       if (mode === 'distance') {
         const center = geometricMedian(points);
@@ -501,6 +567,24 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-actions">
+          <GroupPlanPanel
+            plan={shared.plan}
+            requestedPlanId={shared.requestedPlanId}
+            accessRequired={shared.accessRequired}
+            busy={shared.busy}
+            syncLabel={shared.syncLabel}
+            error={shared.error}
+            onCreate={(input) => shared.create(input).catch(() => undefined)}
+            onLogin={(email, password) => shared.login(email, password).catch(() => undefined)}
+            onRename={async (title) => { await shared.rename(title); }}
+            onAddMember={async (input) => { await shared.addMember(input); }}
+            onResetMember={async (memberId, password) => { await shared.resetMember(memberId, password); }}
+            onRemoveMember={async (member) => { await shared.removeMember(member.id); }}
+            onChangePassword={async (password) => { await shared.changePassword(password); }}
+            onLogout={shared.logout}
+            onDelete={shared.deletePlan}
+            onDismissError={shared.dismissError}
+          />
           <ThemeToggle />
         </div>
       </header>
@@ -537,6 +621,7 @@ export default function App() {
                     setParticipants((current) =>
                       current.filter((item) => item.id !== participant.id),
                     );
+                    void shared.removeParticipant(participant.id).catch(() => undefined);
                     setResult(null);
                     setGlobalError('');
                   }}
@@ -571,6 +656,7 @@ export default function App() {
                     checked={mode === 'rail'}
                     onChange={() => {
                       setMode('rail');
+                      void shared.setMode('rail').catch(() => undefined);
                       setResult(null);
                       setGlobalError('');
                     }}
@@ -586,6 +672,7 @@ export default function App() {
                     checked={mode === 'distance'}
                     onChange={() => {
                       setMode('distance');
+                      void shared.setMode('distance').catch(() => undefined);
                       setResult(null);
                       setGlobalError('');
                     }}
@@ -626,12 +713,8 @@ export default function App() {
           ) : null}
 
           <div className="planner-footnote">
-            <span>Plan saved on this device</span>
-            <nav aria-label="Planner and legal links">
-              <a href="/privacy.html">Privacy</a>
-              <a href="/terms.html">Terms</a>
-              <button type="button" onClick={resetPlanner}>Clear plan</button>
-            </nav>
+            <span>{shared.plan ? `Shared with ${shared.plan.members.length} ${shared.plan.members.length === 1 ? 'person' : 'people'} · ${shared.syncLabel}` : 'Plan saved on this device'}</span>
+            <button type="button" onClick={resetPlanner}>Clear plan</button>
           </div>
         </section>
 
@@ -644,12 +727,27 @@ export default function App() {
             result={result}
             isCalculating={isCalculating}
             trainAlerts={trainAlerts}
+            onSelectStation={selectMeetingStation}
           />
           {mapPoints.length > 0 || result ? (
-            <MapPanel points={mapPoints} result={result} />
+            <MapPanel
+              points={mapPoints}
+              result={result}
+              onSelectStation={selectMeetingStation}
+            />
           ) : null}
         </aside>
       </main>
+      <footer className="app-footer">
+        <div>
+          <strong>Meet Where Sia</strong>
+          <span>Fairer meetups, anywhere in Singapore.</span>
+        </div>
+        <nav aria-label="Legal links">
+          <a href="/privacy.html">Privacy</a>
+          <a href="/terms.html">Terms</a>
+        </nav>
+      </footer>
     </div>
   );
 }

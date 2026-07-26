@@ -24,16 +24,19 @@
     <main>
       <a class="back" href="/">← Back to Meet Where Sia</a>
       <h1>Privacy</h1>
-      <p class="updated">Last updated 23 July 2026</p>
-      <p>Meet Where Sia is a meeting-point planning tool. It does not require an account.</p>
-      <h2>Plan data</h2>
-      <p>Names and locations entered into a plan are stored in your browser’s local storage so the plan can be restored on the same device. The app does not intentionally save that plan to its server. Clearing the plan removes the saved browser copy.</p>
+      <p class="updated">Last updated 26 July 2026</p>
+      <p>Meet Where Sia is a meeting-point planning tool. You can use a local plan without an account, or create a private shared plan for a group.</p>
+      <h2>Local plans</h2>
+      <p>Names and locations entered into a local plan are stored in your browser’s local storage so the plan can be restored on the same device. Clearing the plan removes that browser copy.</p>
+      <h2>Shared plans</h2>
+      <p>When you create or join a shared plan, the app stores the plan name, participant names and locations, member names and email addresses, roles, update times and password hashes in a managed Redis database. Plaintext passwords are not stored. A secure, HTTP-only session cookie keeps you signed in for up to 30 days.</p>
+      <p>Plan members can view and edit the plan. The owner can view member email addresses, add or remove members, reset member passwords and permanently delete the shared plan. Other members see names and roles but not one another’s email addresses. Removing a member blocks that member’s existing session from the plan.</p>
       <h2>Map and location services</h2>
       <p>When Google features are enabled, searches and map requests are sent to Google Maps Platform so that addresses, suggestions, coordinates and map tiles can be returned. Google processes this information under the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>. When the backup map is used, map tile requests are sent to OpenStreetMap.</p>
-      <h2>Rail data and hosting</h2>
-      <p>The server requests public station data from Singapore government sources and, when configured, train-service status from LTA DataMall. The hosting provider may retain standard security and request logs such as IP address, browser information and request time.</p>
+      <h2>Service providers and logs</h2>
+      <p>The server requests public station data from Singapore government sources and, when configured, train-service status from LTA DataMall. Vercel hosts the app and Upstash stores shared-plan data. These providers may retain standard security and request logs such as IP address, browser information and request time under their own policies.</p>
       <h2>Your choices</h2>
-      <p>You can use exact MRT/LRT station names without Google place search, clear your plan at any time, or remove this site’s local storage through your browser settings.</p>
+      <p>You can use exact MRT/LRT station names without Google place search, keep a plan local, clear local data at any time, sign out of a shared plan, ask its owner to remove your access, or have the owner delete the shared plan.</p>
     </main>
   </body>
 </html>

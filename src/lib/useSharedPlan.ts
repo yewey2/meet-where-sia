@@ -71,13 +71,20 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
   useEffect(() => {
     if (!plan) return;
     const interval = window.setInterval(() => {
-      if (document.hidden || pendingCount.current > 0) return;
+      if (document.hidden || pendingCount.current > 0 || participantTimers.current.size > 0) return;
       void loadSharedPlan(plan.id)
         .then((next) => {
           if (next.version > (planRef.current?.version || 0)) acceptPlan(next, true);
         })
-        .catch(() => undefined);
-    }, 8_000);
+        .catch((pollError: unknown) => {
+          if (pollError instanceof SharedPlanError && [401, 403, 404].includes(pollError.status)) {
+            planRef.current = null;
+            setPlan(null);
+            setAccessRequired(true);
+            setError(message(pollError));
+          }
+        });
+    }, 20_000);
     return () => window.clearInterval(interval);
   }, [acceptPlan, plan]);
 
@@ -167,10 +174,13 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
     changePassword: (password: string) => runMutation({ type: 'changePassword', password }, false),
     async logout() {
       if (!planRef.current) return;
-      await logoutSharedPlan(planRef.current.id);
-      planRef.current = null;
-      setPlan(null);
-      setAccessRequired(true);
+      try {
+        await logoutSharedPlan(planRef.current.id);
+      } finally {
+        planRef.current = null;
+        setPlan(null);
+        setAccessRequired(true);
+      }
     },
     async deletePlan() {
       if (!planRef.current) return;

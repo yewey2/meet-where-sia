@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   MeetingResult,
   RailJourneyEstimate,
+  RankedStation,
   TrainAlertPayload,
 } from '../types';
 import {
@@ -17,6 +18,7 @@ interface ResultPanelProps {
   result: MeetingResult | null;
   isCalculating: boolean;
   trainAlerts: TrainAlertPayload | null;
+  onSelectStation: (station: RankedStation) => void;
 }
 
 function formatKm(value: number): string {
@@ -104,8 +106,19 @@ export function ResultPanel({
   result,
   isCalculating,
   trainAlerts,
+  onSelectStation,
 }: ResultPanelProps) {
   const [shareStatus, setShareStatus] = useState('');
+  const resultHeadingRef = useRef<HTMLHeadingElement>(null);
+  const shouldFocusHeadingRef = useRef(false);
+  const selectedStationId =
+    result?.mode === 'rail' ? result.station.id : '';
+
+  useEffect(() => {
+    if (!shouldFocusHeadingRef.current) return;
+    shouldFocusHeadingRef.current = false;
+    resultHeadingRef.current?.focus({ preventScroll: true });
+  }, [selectedStationId]);
 
   useEffect(() => {
     setShareStatus('');
@@ -140,9 +153,25 @@ export function ResultPanel({
     );
   }
 
+  const selectedRailRank =
+    result.mode === 'rail'
+      ? Math.max(
+          1,
+          result.alternatives.findIndex(
+            (station) => station.id === result.station.id,
+          ) + 1,
+        )
+      : 0;
+  const mapsQuery =
+    result.mode === 'rail'
+      ? `${result.station.name} ${result.station.network} Station, Singapore`
+      : result.address || result.title || `${result.lat},${result.lng}`;
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    `${result.lat},${result.lng}`,
+    mapsQuery,
   )}`;
+  const websiteUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+  // Keep result sharing on this site; an existing shared-plan query is preserved.
+  const shareUrl = websiteUrl;
   const shareText =
     result.mode === 'rail'
       ? `Meet at ${result.title}. Longest estimated journey: ${formatMinutes(result.maxMinutes)}.`
@@ -155,14 +184,14 @@ export function ResultPanel({
         await navigator.share({
           title: 'Meet Where Sia',
           text: shareText,
-          url: mapsUrl,
+          url: shareUrl,
         });
         setShareStatus('Shared');
       } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(`${shareText}\n${mapsUrl}`);
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
         setShareStatus('Copied');
       } else {
-        setShareStatus('Use the Maps link to share');
+        setShareStatus('Copy the page URL to share');
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -170,20 +199,36 @@ export function ResultPanel({
     }
   }
 
+  function selectStation(station: RankedStation) {
+    shouldFocusHeadingRef.current = true;
+    onSelectStation(station);
+  }
+
   return (
     <section
       id="meeting-result"
       className="result-card result-complete"
-      aria-live="polite"
+      aria-labelledby="meeting-result-title"
     >
+      <p className="sr-only" role="status">
+        {result.mode === 'rail'
+          ? `Selected rank ${selectedRailRank}: ${result.title}`
+          : `Fair meeting point: ${result.title}`}
+      </p>
       <div className="result-kicker">
         {result.mode === 'rail' ? <RailIcon /> : <SparkIcon />}
-        {result.mode === 'rail' ? 'Best place by MRT/LRT' : 'Fairest by distance'}
+        {result.mode === 'rail'
+          ? selectedRailRank === 1
+            ? 'Best place by MRT/LRT'
+            : `Selected station · #${selectedRailRank} overall`
+          : 'Fairest by distance'}
       </div>
 
       <div className="result-title-row">
         <div>
-          <h2>{result.title}</h2>
+          <h2 id="meeting-result-title" ref={resultHeadingRef} tabIndex={-1}>
+            {result.title}
+          </h2>
           {result.mode === 'rail' ? (
             <div
               className="rail-line-chips"
@@ -255,7 +300,7 @@ export function ResultPanel({
       ) : null}
 
       {result.mode === 'rail' ? (
-        <p className="result-tip">Pick an exact exit or venue before sharing with the group.</p>
+        <p className="result-tip">Confirm the station exit or venue with your group.</p>
       ) : null}
 
       <div className="result-actions">
@@ -280,18 +325,29 @@ export function ResultPanel({
           <summary>Other good stations</summary>
           <div className="alternatives-block">
             <div className="alternative-list">
-              {result.alternatives.slice(1, 4).map((station, index) => (
-                <div className="alternative-row" key={station.id}>
-                  <span className="alternative-rank">{index + 2}</span>
-                  <span className="alternative-name">
-                    <strong>{station.name}</strong>
-                    <small>
-                      {station.lineCodes.join('/')} · average {formatMinutes(station.averageMinutes)}
-                    </small>
-                  </span>
-                  <span>{formatMinutes(station.maxMinutes)} longest</span>
-                </div>
-              ))}
+              {result.alternatives
+                .map((station, index) => ({ station, rank: index + 1 }))
+                .filter(({ station }) => station.id !== result.station.id)
+                .map(({ station, rank }) => (
+                  <button
+                    type="button"
+                    className="alternative-row"
+                    key={station.id}
+                    aria-label={`Rank ${rank}: choose ${station.name} ${station.network}, ${formatMinutes(station.maxMinutes)} longest journey`}
+                    onClick={() => selectStation(station)}
+                  >
+                    <span className="alternative-rank">{rank}</span>
+                    <span className="alternative-name">
+                      <strong>{station.name}</strong>
+                      <small>
+                        {station.lineCodes.join('/')} · average {formatMinutes(station.averageMinutes)}
+                      </small>
+                    </span>
+                    <span className="alternative-duration">
+                      {formatMinutes(station.maxMinutes)} longest
+                    </span>
+                  </button>
+                ))}
             </div>
           </div>
         </details>

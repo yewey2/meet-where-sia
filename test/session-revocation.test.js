@@ -1,0 +1,92 @@
+import assert from 'node:assert/strict';
+import { Readable } from 'node:stream';
+import test from 'node:test';
+import { createPlansHandler, MemoryPlanStore } from '../api/_plans-core.js';
+
+async function invoke(handler, { method = 'POST', url = '/api/plans', body = {}, cookie } = {}) {
+  const request = Readable.from([]);
+  request.method = method;
+  request.url = url;
+  request.body = body;
+  request.socket = { remoteAddress: '127.0.0.3' };
+  request.headers = { host: 'localhost:5173', ...(cookie ? { cookie } : {}) };
+  const headers = new Map();
+  let raw = '';
+  const response = {
+    statusCode: 200,
+    setHeader(name, value) { headers.set(name.toLowerCase(), value); },
+    end(value = '') { raw += value; },
+  };
+  await handler(request, response);
+  return { status: response.statusCode, headers, body: raw ? JSON.parse(raw) : null };
+}
+
+function cookie(response) {
+  return String(response.headers.get('set-cookie')).split(';')[0];
+}
+
+test('an owner password reset immediately revokes the member session', async () => {
+  const handler = createPlansHandler({ store: new MemoryPlanStore() });
+  const participant = {
+    id: 'person_session_test',
+    name: 'Owner',
+    sameAsStart: true,
+    start: { query: 'Eunos MRT', status: 'empty' },
+    end: { query: 'Eunos MRT', status: 'empty' },
+  };
+  const created = await invoke(handler, {
+    body: {
+      action: 'create', title: 'Session reset', displayName: 'Owner',
+      email: 'owner-reset@example.com', password: 'owner reset password',
+      participants: [participant], mode: 'rail',
+    },
+  });
+  const planId = created.body.plan.id;
+  const ownerCookie = cookie(created);
+  const added = await invoke(handler, {
+    cookie: ownerCookie,
+    body: {
+      action: 'mutate', planId,
+      mutation: {
+        type: 'addMember', displayName: 'Friend', email: 'friend-reset@example.com',
+        temporaryPassword: 'original friend password',
+      },
+    },
+  });
+  const memberId = added.body.plan.members.find((member) => member.role === 'member').id;
+  const login = await invoke(handler, {
+    body: {
+      action: 'login', planId, email: 'friend-reset@example.com',
+      password: 'original friend password',
+    },
+  });
+  const oldCookie = cookie(login);
+
+  const reset = await invoke(handler, {
+    cookie: ownerCookie,
+    body: {
+      action: 'mutate', planId,
+      mutation: {
+        type: 'resetMemberPassword', memberId,
+        temporaryPassword: 'replacement friend password',
+      },
+    },
+  });
+  assert.equal(reset.status, 200);
+
+  const stale = await invoke(handler, {
+    method: 'GET',
+    url: `/api/plans?planId=${planId}`,
+    cookie: oldCookie,
+  });
+  assert.equal(stale.status, 401);
+  assert.equal(stale.body.code, 'AUTH_REQUIRED');
+
+  const relogin = await invoke(handler, {
+    body: {
+      action: 'login', planId, email: 'friend-reset@example.com',
+      password: 'replacement friend password',
+    },
+  });
+  assert.equal(relogin.status, 200);
+});
