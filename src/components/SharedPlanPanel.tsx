@@ -173,6 +173,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
         : 'Join this plan';
 
   const combinedError = localError || props.error;
+  const isAccessDialog = dialog === 'manage' && Boolean(props.plan) && !currentMember;
 
   return (
     <>
@@ -188,8 +189,8 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
       </button>
 
       {dialog ? (
-        <div className="group-dialog-backdrop" role="presentation" onMouseDown={closeDialog}>
-          <section ref={dialogRef} tabIndex={-1} className="group-dialog" role="dialog" aria-modal="true" aria-labelledby="group-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className={`group-dialog-backdrop${isAccessDialog ? ' is-access' : ''}`} role="presentation" onMouseDown={closeDialog}>
+          <section ref={dialogRef} tabIndex={-1} className={`group-dialog${isAccessDialog ? ' group-dialog-access' : ''}`} role="dialog" aria-modal="true" aria-labelledby="group-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
             <button className="group-dialog-close" type="button" aria-label="Close" onClick={closeDialog}>×</button>
 
             {dialog === 'create' ? (
@@ -221,15 +222,20 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
               <>
                 <p className="group-kicker">Shared plan</p>
                 <h2 id="group-dialog-title">{props.plan.title}</h2>
-                <div className="group-share-row">
-                  <input aria-label="Share link" readOnly value={planUrl} />
-                  <button type="button" onClick={() => void copyText(planUrl, 'plan')}>{copied === 'plan' ? 'Copied' : 'Copy link'}</button>
-                </div>
-                <p className="group-hint">Anyone with this link can view names and locations. Prefer MRT stations or approximate locations over home addresses.</p>
+                {currentMember ? (
+                  <>
+                    <div className="group-share-row">
+                      <input aria-label="Share link" readOnly value={planUrl} />
+                      <button type="button" onClick={() => void copyText(planUrl, 'plan')}>{copied === 'plan' ? 'Copied' : 'Copy link'}</button>
+                    </div>
+                    <p className="group-hint">Anyone with this link can view names and locations. Prefer MRT stations or approximate locations over home addresses.</p>
+                  </>
+                ) : (
+                  <p className="group-dialog-copy">Join to add your route, or sign in to update one you already created.</p>
+                )}
 
                 {!currentMember ? (
                   <div className="group-owner-tools group-access-tools">
-                    <div className="group-member-summary"><strong>Join to add or edit your route</strong><span>Access is only for this plan—there is no site-wide account.</span></div>
                     <div className="group-access-tabs" role="tablist" aria-label="Plan access options">
                       {props.claimToken ? <button type="button" role="tab" aria-selected={accessMode === 'claim'} className={accessMode === 'claim' ? 'is-active' : ''} onClick={() => chooseAccessMode('claim')}>Claim my route</button> : null}
                       {props.plan.joiningEnabled ? <button type="button" role="tab" aria-selected={accessMode === 'join'} className={accessMode === 'join' ? 'is-active' : ''} onClick={() => chooseAccessMode('join')}>I’m new here</button> : null}
