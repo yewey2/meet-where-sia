@@ -727,6 +727,7 @@ export default function App() {
             result={result}
             isCalculating={isCalculating}
             trainAlerts={trainAlerts}
+            points={mapPoints}
             onSelectStation={selectMeetingStation}
           />
           {mapPoints.length > 0 || result ? (
@@ -741,9 +742,26 @@ export default function App() {
       <footer className="app-footer">
         <div>
           <strong>Meet Where Sia</strong>
-          <span>Fairer meetups, anywhere in Singapore.</span>
+          <span>
+            Fairer meetups, anywhere in Singapore. · Built in Singapore · ©{' '}
+            {new Date().getFullYear()}
+          </span>
         </div>
-        <nav aria-label="Legal links">
+        <nav aria-label="Footer links">
+          <a
+            href="https://github.com/yewey2/meet-where-sia"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub<span className="sr-only"> (opens in a new tab)</span>
+          </a>
+          <a
+            href="https://ko-fi.com/sycprojects"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Buy me a kopi<span className="sr-only"> on Ko-fi (opens in a new tab)</span>
+          </a>
           <a href="/privacy.html">Privacy</a>
           <a href="/terms.html">Terms</a>
         </nav>

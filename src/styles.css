@@ -3463,7 +3463,9 @@ html {
 
 .app-footer nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -3482,6 +3484,137 @@ html {
 .app-footer a:hover {
   color: var(--accent-dark);
   background: var(--accent-soft);
+}
+
+/* Per-person directions MVP */
+
+.journey-summary-heading {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 9px;
+}
+
+.journey-summary-heading .section-label {
+  margin: 0;
+}
+
+.journey-summary-heading p {
+  margin: 0;
+  color: var(--soft-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.journey-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.journey-more {
+  margin-top: 8px;
+}
+
+.journey-more > summary {
+  min-height: 44px;
+  padding: 12px 8px;
+  border-radius: 9px;
+  color: var(--accent-dark);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.journey-more > summary:hover {
+  background: var(--accent-soft);
+}
+
+.journey-more[open] > summary {
+  margin-bottom: 8px;
+}
+
+.journey-card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-alt);
+}
+
+.journey-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.journey-card-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.journey-card-heading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.journey-card-heading small {
+  overflow: hidden;
+  color: var(--soft-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journey-card-heading > strong {
+  flex: 0 0 auto;
+  color: var(--accent-dark);
+  font-size: 14px;
+}
+
+.journey-route {
+  margin: 9px 0 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.journey-route strong {
+  color: var(--ink);
+  font-weight: 750;
+}
+
+.journey-route-separator {
+  display: inline-block;
+  margin-inline: 6px;
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
+.journey-directions-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin: -3px 0 -7px -8px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.journey-directions-link:hover {
+  background: var(--accent-soft);
+}
+
+.journey-directions-link svg {
+  width: 14px;
+  height: 14px;
 }
 
 button.alternative-row {
@@ -3533,7 +3666,9 @@ button.alternative-row:focus-visible {
   }
 
   .app-footer {
+    flex-direction: column;
     align-items: flex-start;
+    gap: 4px;
     min-height: 0;
     padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
   }
@@ -3543,6 +3678,12 @@ button.alternative-row:focus-visible {
   }
 
   .app-footer nav {
-    margin-top: -5px;
+    justify-content: flex-start;
+    gap: 2px;
+    margin-top: 0;
+  }
+
+  .app-footer a {
+    padding-inline: 8px;
   }
 }
