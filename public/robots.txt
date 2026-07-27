@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://meet-where-sia.vercel.app/sitemap.xml

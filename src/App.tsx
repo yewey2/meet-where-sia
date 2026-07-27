@@ -5,7 +5,6 @@ import { ResultPanel } from './components/ResultPanel';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SharedPlanPanel } from './components/SharedPlanPanel';
 import {
-  MapPinIcon,
   PlusIcon,
   RailIcon,
   RouteIcon,
@@ -577,7 +576,7 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-lockup">
-          <div className="brand-mark"><MapPinIcon /></div>
+          <div className="brand-mark"><img src="/icon-192.png" alt="" /></div>
           <div>
             <strong>Meet Where Sia</strong>
             <span>Singapore meetup planner</span>
@@ -783,6 +782,43 @@ export default function App() {
           ) : null}
         </aside>
       </main>
+      <section className="search-intro" aria-labelledby="singapore-meetup-planner">
+        <div className="search-intro-heading">
+          <span>Singapore MRT meetup planning</span>
+          <h2 id="singapore-meetup-planner">Find a fair MRT or LRT meeting point</h2>
+          <p>
+            Meet Where Sia compares each person’s journey across Singapore’s rail
+            network and recommends a practical station that balances travel time
+            for the group.
+          </p>
+        </div>
+        <div className="search-intro-grid">
+          <article>
+            <h3>How does the planner choose a station?</h3>
+            <p>
+              Add everyone’s starting point, choose MRT/LRT mode, and the planner
+              compares connected stations using estimated rail journey times. It
+              ranks the fairest option and shows useful alternatives.
+            </p>
+          </article>
+          <article>
+            <h3>Does it cover Singapore’s MRT and LRT?</h3>
+            <p>
+              Yes. The station comparison covers Singapore MRT and LRT services,
+              including interchange connections, so friends travelling from
+              different parts of the island can compare one shared destination.
+            </p>
+          </article>
+          <article>
+            <h3>Can I plan with friends?</h3>
+            <p>
+              Yes. Create a shared plan so each friend can add or update their own
+              route, then compare the recommended meeting station together. The
+              core planner is free to use.
+            </p>
+          </article>
+        </div>
+      </section>
       <footer className="app-footer">
         <div>
           <strong>Meet Where Sia</strong>
