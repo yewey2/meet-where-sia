@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Mode, Participant } from '../types';
+import type { Mode, Participant, RailObjective } from '../types';
 import {
   claimSharedPlan,
   createClaimInvite,
@@ -19,10 +19,12 @@ import {
   type PlanMutation,
   type SharedPlan,
 } from './groupPlans';
+import { ParticipantSaveQueue } from './participantSaveQueue';
 
 interface UseSharedPlanOptions {
   participants: Participant[];
   mode: Mode;
+  railObjective: RailObjective;
   onRemotePlan: (plan: SharedPlan) => void;
 }
 
@@ -30,7 +32,7 @@ function message(error: unknown) {
   return error instanceof Error ? error.message : 'The shared plan could not be updated.';
 }
 
-export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPlanOptions) {
+export function useSharedPlan({ participants, mode, railObjective, onRemotePlan }: UseSharedPlanOptions) {
   const [requestedPlanId, setRequestedPlanId] = useState<string | null>(() => planIdFromLocation());
   const [claimToken, setClaimToken] = useState<string | null>(() => inviteTokenFromLocation());
   const [plan, setPlan] = useState<SharedPlan | null>(null);
@@ -39,7 +41,7 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
   const [syncLabel, setSyncLabel] = useState('Saved');
   const planRef = useRef<SharedPlan | null>(null);
   const pendingCount = useRef(0);
-  const participantTimers = useRef(new Map<string, number>());
+  const participantQueue = useRef<ParticipantSaveQueue | null>(null);
   const authEpoch = useRef(0);
 
   const acceptPlan = useCallback((next: SharedPlan, applyRemote = false) => {
@@ -76,7 +78,7 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
   useEffect(() => {
     if (!plan) return;
     const interval = window.setInterval(() => {
-      if (document.hidden || pendingCount.current > 0 || participantTimers.current.size > 0) return;
+      if (document.hidden || pendingCount.current > 0 || participantQueue.current?.hasPending) return;
       const epoch = authEpoch.current;
       void loadSharedPlan(plan.id)
         .then((next) => {
@@ -95,11 +97,7 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
     return () => window.clearInterval(interval);
   }, [acceptPlan, plan]);
 
-  useEffect(() => () => {
-    participantTimers.current.forEach((timer) => window.clearTimeout(timer));
-  }, []);
-
-  const runMutation = useCallback(async (mutation: PlanMutation, applyRemote = true) => {
+  const runMutation = useCallback(async (mutation: PlanMutation, applyRemote = true, keepalive = false) => {
     const current = planRef.current;
     if (!current) return null;
     const epoch = authEpoch.current;
@@ -107,7 +105,7 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
     setSyncLabel('Saving…');
     setError('');
     try {
-      const next = await mutateSharedPlan(current.id, mutation);
+      const next = await mutateSharedPlan(current.id, mutation, keepalive);
       if (epoch === authEpoch.current) {
         acceptPlan(next, applyRemote && pendingCount.current === 1);
         setSyncLabel('Saved');
@@ -123,18 +121,46 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
     }
   }, [acceptPlan]);
 
+  if (!participantQueue.current) {
+    participantQueue.current = new ParticipantSaveQueue(
+      async (participant, keepalive) => {
+        await runMutation({ type: 'updateParticipant', participant }, false, keepalive);
+      },
+      () => undefined,
+    );
+  }
+  participantQueue.current.setSave(async (participant, keepalive) => {
+    await runMutation({ type: 'updateParticipant', participant }, false, keepalive);
+  });
+
+  const flushParticipants = useCallback((keepalive = false) => (
+    participantQueue.current?.flush(keepalive) || Promise.resolve()
+  ), []);
+
+  useEffect(() => {
+    const flushInBackground = () => {
+      void flushParticipants(true).catch(() => undefined);
+    };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') flushInBackground();
+    };
+    window.addEventListener('blur', flushInBackground);
+    window.addEventListener('pagehide', flushInBackground);
+    document.addEventListener('visibilitychange', flushWhenHidden);
+    return () => {
+      window.removeEventListener('blur', flushInBackground);
+      window.removeEventListener('pagehide', flushInBackground);
+      document.removeEventListener('visibilitychange', flushWhenHidden);
+      flushInBackground();
+    };
+  }, [flushParticipants]);
+
   const scheduleParticipant = useCallback((participant: Participant) => {
     const current = planRef.current;
     if (!current) return;
-    const existing = participantTimers.current.get(participant.id);
-    if (existing) window.clearTimeout(existing);
     setSyncLabel('Unsaved changes');
-    const timer = window.setTimeout(() => {
-      participantTimers.current.delete(participant.id);
-      void runMutation({ type: 'updateParticipant', participant }, false).catch(() => undefined);
-    }, 650);
-    participantTimers.current.set(participant.id, timer);
-  }, [runMutation]);
+    participantQueue.current?.schedule(participant);
+  }, []);
 
   return {
     plan,
@@ -148,7 +174,7 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
       setBusy(true);
       setError('');
       try {
-        const next = await createSharedPlan({ ...input, participants, mode });
+        const next = await createSharedPlan({ ...input, participants, mode, railObjective });
         setPlanInLocation(next.id);
         setRequestedPlanId(next.id);
         acceptPlan(next);
@@ -239,7 +265,8 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
     addParticipant: (participant: Participant) => runMutation({ type: 'addParticipant', participant }),
     removeParticipant: (participantId: string) => runMutation({ type: 'removeParticipant', participantId }),
     setMode: (nextMode: Mode) => runMutation({ type: 'setMode', mode: nextMode }, false),
-    resetPlan: (nextParticipants: Participant[], nextMode: Mode) => runMutation({ type: 'resetPlan', participants: nextParticipants, mode: nextMode }),
+    setRailObjective: (nextObjective: RailObjective) => runMutation({ type: 'setRailObjective', railObjective: nextObjective }, false),
+    resetPlan: (nextParticipants: Participant[], nextMode: Mode, nextObjective: RailObjective) => runMutation({ type: 'resetPlan', participants: nextParticipants, mode: nextMode, railObjective: nextObjective }),
     rename: (title: string) => runMutation({ type: 'renamePlan', title }, false),
     setJoining: (enabled: boolean) => runMutation({ type: 'setJoining', enabled }, false),
     async createInvite(participantId: string) {
@@ -268,10 +295,15 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
     async logout() {
       const current = planRef.current;
       if (!current) return;
+      try {
+        await flushParticipants();
+      } catch {
+        // runMutation has already exposed the save failure. Stay signed in so
+        // the queued edit can be retried instead of silently discarding it.
+        return;
+      }
       const planId = current.id;
       const epoch = ++authEpoch.current;
-      participantTimers.current.forEach((timer) => window.clearTimeout(timer));
-      participantTimers.current.clear();
       const publicSnapshot: SharedPlan = { ...current, currentMember: null, members: [] };
       acceptPlan(publicSnapshot, true);
       setSyncLabel('View only');
@@ -289,18 +321,16 @@ export function useSharedPlan({ participants, mode, onRemotePlan }: UseSharedPla
       if (!planRef.current) return;
       await deleteSharedPlan(planRef.current.id);
       authEpoch.current += 1;
-      participantTimers.current.forEach((timer) => window.clearTimeout(timer));
-      participantTimers.current.clear();
+      participantQueue.current?.cancel();
       planRef.current = null;
       setPlan(null);
       setRequestedPlanId(null);
       setClaimToken(null);
       setPlanInLocation();
     },
-    leavePlan() {
+    async leavePlan() {
+      await flushParticipants();
       authEpoch.current += 1;
-      participantTimers.current.forEach((timer) => window.clearTimeout(timer));
-      participantTimers.current.clear();
       planRef.current = null;
       setPlan(null);
       setRequestedPlanId(null);

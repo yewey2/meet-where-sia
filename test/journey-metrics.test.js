@@ -46,5 +46,37 @@ test('rail fairness uses each person full outing while preserving both legs', as
     totalMinutes: 80,
     averageMinutes: 40,
     maxMinutes: 40,
+    varianceMinutes: 0,
+    standardDeviationMinutes: 0,
+  });
+});
+
+test('rail evenness metrics measure variance between complete participant outings', async () => {
+  const { participantTravelTimeMetrics } = await loadJourneyMetrics();
+  const journeys = [
+    journey('a', 'Aisha', 'start', 5),
+    journey('a', 'Aisha', 'end', 5),
+    journey('b', 'Ben', 'start', 25),
+    journey('b', 'Ben', 'end', 25),
+  ];
+
+  assert.deepEqual(participantTravelTimeMetrics(journeys), {
+    totalMinutes: 60,
+    averageMinutes: 30,
+    maxMinutes: 50,
+    varianceMinutes: 400,
+    standardDeviationMinutes: 20,
+  });
+});
+
+test('empty rail journeys have finite zero-valued metrics', async () => {
+  const { participantTravelTimeMetrics } = await loadJourneyMetrics();
+
+  assert.deepEqual(participantTravelTimeMetrics([]), {
+    totalMinutes: 0,
+    averageMinutes: 0,
+    maxMinutes: 0,
+    varianceMinutes: 0,
+    standardDeviationMinutes: 0,
   });
 });

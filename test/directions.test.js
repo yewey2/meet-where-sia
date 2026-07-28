@@ -25,3 +25,30 @@ test('after-meetup directions reverse the meeting point and destination', async 
   assert.equal(afterMeetup.searchParams.get('origin'), 'Bishan MRT Station, Singapore');
   assert.equal(afterMeetup.searchParams.get('destination'), '1.35,103.82');
 });
+
+test('meeting point Maps links use coordinates when a distance result has no address', async () => {
+  const { meetingPointMapsUrl } = await loadDirections();
+  const url = new URL(meetingPointMapsUrl({
+    mode: 'distance',
+    title: 'Fair distance centre',
+    address: '',
+    lat: 1.300123,
+    lng: 103.800456,
+  }));
+
+  assert.equal(url.searchParams.get('query'), '1.300123,103.800456');
+  assert.ok(url.href.length < 120);
+});
+
+test('meeting point Maps links prefer a reverse-geocoded distance address', async () => {
+  const { meetingPointMapsUrl } = await loadDirections();
+  const url = new URL(meetingPointMapsUrl({
+    mode: 'distance',
+    title: 'Fair distance centre',
+    address: '1 Raffles Place, Singapore',
+    lat: 1.284,
+    lng: 103.851,
+  }));
+
+  assert.equal(url.searchParams.get('query'), '1 Raffles Place, Singapore');
+});

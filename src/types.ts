@@ -1,4 +1,5 @@
 export type Mode = 'distance' | 'rail';
+export type RailObjective = 'minimax' | 'average' | 'evenness';
 
 export type LocationStatus =
   | 'empty'
@@ -54,6 +55,8 @@ export interface RankedStation extends MrtStation {
   totalMinutes: number;
   averageMinutes: number;
   maxMinutes: number;
+  varianceMinutes: number;
+  standardDeviationMinutes: number;
   totalTransfers: number;
   journeys: RailJourneyEstimate[];
   lineCodes: string[];
@@ -86,6 +89,7 @@ export interface DistanceResult extends Coordinate {
 
 export interface RailResult extends Coordinate {
   mode: 'rail';
+  objective: RailObjective;
   title: string;
   address: string;
   station: RankedStation;

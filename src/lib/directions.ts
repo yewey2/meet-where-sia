@@ -1,5 +1,17 @@
 import type { EndpointPoint, MeetingResult } from '../types';
 
+export function meetingPointMapsUrl(result: MeetingResult): string {
+  const query =
+    result.mode === 'rail'
+      ? `${result.station.name} ${result.station.network} Station, Singapore`
+      : result.address || `${result.lat},${result.lng}`;
+  const parameters = new URLSearchParams({
+    api: '1',
+    query,
+  });
+  return `https://www.google.com/maps/search/?${parameters.toString()}`;
+}
+
 export function meetingDirectionsUrl(
   endpoint: EndpointPoint,
   result: MeetingResult,

@@ -6,10 +6,11 @@ import type {
   RailJourneyEstimate,
   RailResult,
   RankedStation,
+  RailObjective,
   TrainAlertPayload,
 } from '../types';
 import { haversineKm } from '../lib/centroid';
-import { meetingDirectionsUrl } from '../lib/directions';
+import { meetingDirectionsUrl, meetingPointMapsUrl } from '../lib/directions';
 import {
   summarizeParticipantJourneys,
   type ParticipantJourneySummary,
@@ -43,6 +44,18 @@ function formatMinutes(value: number): string {
   const hours = Math.floor(rounded / 60);
   const minutes = rounded % 60;
   return `${hours} hr${minutes ? ` ${minutes} min` : ''}`;
+}
+
+function objectiveLabel(objective: RailObjective): string {
+  if (objective === 'average') return 'Lowest group average';
+  if (objective === 'evenness') return 'Most even journeys';
+  return 'Shortest longest journey';
+}
+
+function objectiveMetric(station: RankedStation, objective: RailObjective): string {
+  if (objective === 'average') return `${formatMinutes(station.averageMinutes)} average`;
+  if (objective === 'evenness') return `${formatMinutes(station.standardDeviationMinutes)} spread`;
+  return `${formatMinutes(station.maxMinutes)} longest total`;
 }
 
 const RAIL_LINE_NAMES: Record<string, string> = {
@@ -303,20 +316,20 @@ export function ResultPanel({
           ) + 1,
         )
       : 0;
-  const mapsQuery =
-    result.mode === 'rail'
-      ? `${result.station.name} ${result.station.network} Station, Singapore`
-      : result.address || result.title || `${result.lat},${result.lng}`;
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    mapsQuery,
-  )}`;
+  const mapsUrl = meetingPointMapsUrl(result);
   const websiteUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
-  // Keep result sharing on this site; an existing shared-plan query is preserved.
-  const shareUrl = websiteUrl;
-  const shareText =
+  const isSharedPlan = new URLSearchParams(window.location.search).has('plan');
+  const resultSummary =
     result.mode === 'rail'
-      ? `Meet at ${result.title}. Longest estimated full outing: ${formatMinutes(result.maxMinutes)}.`
+      ? `Meet at ${result.title}. ${objectiveLabel(result.objective)}: ${objectiveMetric(result.station, result.objective)}.`
       : `Meet near ${result.title}. Average distance: ${formatKm(result.averageKm)}.`;
+  // Local plans cannot be reconstructed by recipients, so share the compact Maps
+  // destination directly. Shared plans retain their short plan URL and put the
+  // independently useful Maps destination in the message.
+  const shareUrl = isSharedPlan ? websiteUrl : mapsUrl;
+  const shareText = isSharedPlan
+    ? `${resultSummary}\nMeeting spot on Maps: ${mapsUrl}`
+    : resultSummary;
   const startingPoints = points.filter((point) => point.kind === 'start');
   const pointsById = new Map(points.map((point) => [point.id, point]));
   const participantJourneys =
@@ -338,7 +351,7 @@ export function ResultPanel({
         await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
         setShareStatus('Copied');
       } else {
-        setShareStatus('Copy the page URL to share');
+        setShareStatus('Open Maps to copy the link');
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -366,7 +379,7 @@ export function ResultPanel({
         {result.mode === 'rail' ? <RailIcon /> : <SparkIcon />}
         {result.mode === 'rail'
           ? selectedRailRank === 1
-            ? 'Best place by MRT/LRT'
+            ? `Best MRT/LRT station · ${objectiveLabel(result.objective)}`
             : `Selected station · #${selectedRailRank} overall`
           : 'Fairest by distance'}
       </div>
@@ -406,19 +419,33 @@ export function ResultPanel({
       <div className="metric-grid metric-grid-primary">
         <div className="metric-card metric-card-emphasis">
           <span>
-            {result.mode === 'rail' ? 'Longest full outing' : 'Average distance'}
+            {result.mode === 'rail'
+              ? result.objective === 'average'
+                ? 'Group average'
+                : result.objective === 'evenness'
+                  ? 'Journey-time spread'
+                  : 'Longest full outing'
+              : 'Average distance'}
           </span>
           <strong>
             {result.mode === 'rail'
-              ? formatMinutes(result.maxMinutes)
+              ? result.objective === 'average'
+                ? formatMinutes(result.averageMinutes)
+                : result.objective === 'evenness'
+                  ? formatMinutes(result.station.standardDeviationMinutes)
+                  : formatMinutes(result.maxMinutes)
               : formatKm(result.averageKm)}
           </strong>
         </div>
         <div className="metric-card">
-          <span>{result.mode === 'rail' ? 'Average per person' : 'Farthest person'}</span>
+          <span>{result.mode === 'rail'
+            ? result.objective === 'average' ? 'Longest full outing' : 'Average per person'
+            : 'Farthest person'}</span>
           <strong>
             {result.mode === 'rail'
-              ? formatMinutes(result.averageMinutes)
+              ? result.objective === 'average'
+                ? formatMinutes(result.maxMinutes)
+                : formatMinutes(result.averageMinutes)
               : formatKm(result.maxKm)}
           </strong>
         </div>
@@ -522,7 +549,7 @@ export function ResultPanel({
                     type="button"
                     className="alternative-row"
                     key={station.id}
-                    aria-label={`Rank ${rank}: choose ${station.name} ${station.network}, ${formatMinutes(station.maxMinutes)} longest full outing`}
+                    aria-label={`Rank ${rank}: choose ${station.name} ${station.network}, ${objectiveMetric(station, result.objective)}`}
                     onClick={() => selectStation(station)}
                   >
                     <span className="alternative-rank">{rank}</span>
@@ -533,7 +560,7 @@ export function ResultPanel({
                       </small>
                     </span>
                     <span className="alternative-duration">
-                      {formatMinutes(station.maxMinutes)} longest total
+                      {objectiveMetric(station, result.objective)}
                     </span>
                   </button>
                 ))}
@@ -553,7 +580,7 @@ export function ResultPanel({
         <summary>How this was chosen</summary>
         <p className="method-note">
           {result.mode === 'rail'
-            ? `Compared ${result.candidateCount} connected stations using each person's combined trip to the meetup and onwards afterwards. Estimates include walking, waiting, train travel and transfers, but not buses.`
+            ? `${objectiveLabel(result.objective)} was selected. Compared ${result.candidateCount} connected stations using each person's combined trip to the meetup and onwards afterwards. ${result.objective === 'average' ? 'Stations were ranked by the group’s average total time.' : result.objective === 'evenness' ? 'Stations were ranked by the variance in people’s total times, with average and longest time used to break close ties.' : 'Stations were ranked by the longest participant total, with the group average used to break close ties.'} Estimates include walking, waiting, train travel and transfers, but not buses.`
             : 'This point approximately minimises the combined straight-line distance to every location.'}
         </p>
       </details>

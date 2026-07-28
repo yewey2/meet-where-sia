@@ -257,3 +257,37 @@ test('sign-in attempts are rate limited', async () => {
   }
   assert.equal(result.status, 429);
 });
+
+test('rail objective is created, mutated, reset, and exposed with an old-plan default', async () => {
+  const store = new MemoryPlanStore();
+  const handler = createPlansHandler({ store });
+  const created = await request(handler, {
+    method: 'POST',
+    body: {
+      action: 'create', title: 'Objective plan', displayName: 'Owner',
+      email: 'objective@example.com', password: 'owner password 123',
+      participants: [participant], mode: 'rail', railObjective: 'average',
+    },
+  });
+  assert.equal(created.body.plan.railObjective, 'average');
+  const planId = created.body.plan.id;
+  const cookie = cookiePair(created.headers.get('set-cookie'));
+
+  const changed = await request(handler, {
+    method: 'POST', cookie,
+    body: { action: 'mutate', planId, mutation: { type: 'setRailObjective', railObjective: 'evenness' } },
+  });
+  assert.equal(changed.body.plan.railObjective, 'evenness');
+
+  const reset = await request(handler, {
+    method: 'POST', cookie,
+    body: { action: 'mutate', planId, mutation: { type: 'resetPlan', participants: [participant], mode: 'rail' } },
+  });
+  assert.equal(reset.body.plan.railObjective, 'minimax');
+
+  const stored = await store.get(`mws:plan:${planId}`);
+  delete stored.railObjective;
+  await store.set(`mws:plan:${planId}`, stored);
+  const oldPlan = await request(handler, { url: `/api/plans?planId=${planId}` });
+  assert.equal(oldPlan.body.plan.railObjective, 'minimax');
+});

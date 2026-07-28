@@ -235,9 +235,12 @@ elseif mutation.type == 'removeParticipant' then
   plan.claimInvites = nextInvites
 elseif mutation.type == 'setMode' then
   plan.mode = mutation.mode
+elseif mutation.type == 'setRailObjective' then
+  plan.railObjective = mutation.railObjective
 elseif mutation.type == 'resetPlan' then
   plan.participants = mutation.participants
   plan.mode = mutation.mode
+  plan.railObjective = mutation.railObjective
   local owners = {}
   for _, member in ipairs(plan.members) do
     if member.role == 'owner' then table.insert(owners, member) end
@@ -647,9 +650,12 @@ function applyMemoryMutation(plan, actor, mutation) {
     plan.claimInvites = (plan.claimInvites || []).filter((item) => item.participantId !== mutation.participantId);
   } else if (mutation.type === 'setMode') {
     plan.mode = mutation.mode;
+  } else if (mutation.type === 'setRailObjective') {
+    plan.railObjective = mutation.railObjective;
   } else if (mutation.type === 'resetPlan') {
     plan.participants = mutation.participants;
     plan.mode = mutation.mode;
+    plan.railObjective = mutation.railObjective;
     plan.members = plan.members.filter((item) => item.role === 'owner');
     plan.claimInvites = [];
   } else if (mutation.type === 'renamePlan') {
@@ -815,6 +821,9 @@ function publicPlan(plan, currentMember) {
     id: plan.id,
     title: plan.title,
     mode: plan.mode,
+    railObjective: plan.railObjective === 'average' || plan.railObjective === 'evenness'
+      ? plan.railObjective
+      : 'minimax',
     participants: plan.participants.map((participant) => {
       const { nameKey: _nameKey, ...visible } = participant;
       return visible;
@@ -878,8 +887,24 @@ async function validateMutation(input, plan) {
       return { type: input.type, participantId: cleanText(input.participantId, 80), updatedAt };
     case 'setMode':
       return { type: input.type, mode: input.mode === 'distance' ? 'distance' : 'rail', updatedAt };
+    case 'setRailObjective':
+      return {
+        type: input.type,
+        railObjective: input.railObjective === 'average' || input.railObjective === 'evenness'
+          ? input.railObjective
+          : 'minimax',
+        updatedAt,
+      };
     case 'resetPlan':
-      return { type: input.type, participants: validateParticipants(input.participants), mode: input.mode === 'distance' ? 'distance' : 'rail', updatedAt };
+      return {
+        type: input.type,
+        participants: validateParticipants(input.participants),
+        mode: input.mode === 'distance' ? 'distance' : 'rail',
+        railObjective: input.railObjective === 'average' || input.railObjective === 'evenness'
+          ? input.railObjective
+          : 'minimax',
+        updatedAt,
+      };
     case 'renamePlan': {
       const title = cleanText(input.title, 100);
       if (!title) throw new ClientError(400, 'Plan name is required.');
@@ -988,6 +1013,9 @@ export function createPlansHandler({ store: injectedStore } = {}) {
             id: planId,
             title,
             mode: body.mode === 'distance' ? 'distance' : 'rail',
+            railObjective: body.railObjective === 'average' || body.railObjective === 'evenness'
+              ? body.railObjective
+              : 'minimax',
             joiningEnabled: true,
             participants,
             members: [owner],

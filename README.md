@@ -127,6 +127,7 @@ Set a writable Upstash REST URL and token to enable shared plans. The app accept
 - `KV_REST_API_URL` and `KV_REST_API_TOKEN`
 
 See [Deployment](docs/DEPLOYMENT.md) for complete Vercel and Docker instructions.
+Planned routing and venue enhancements are tracked in [Future improvements](docs/FUTURE.md).
 
 ## API routes
 

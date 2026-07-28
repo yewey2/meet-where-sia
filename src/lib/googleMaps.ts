@@ -21,7 +21,7 @@ export function loadGoogleMaps(): Promise<typeof google> {
     );
   }
 
-  googleMapsPromise = new Promise((resolve, reject) => {
+  const loadAttempt = new Promise<typeof google>((resolve, reject) => {
     const existingScript = document.querySelector<HTMLScriptElement>(
       'script[data-meet-where-google-maps]',
     );
@@ -58,6 +58,18 @@ export function loadGoogleMaps(): Promise<typeof google> {
       { once: true },
     );
     document.head.appendChild(script);
+  });
+
+  googleMapsPromise = loadAttempt.catch((error: unknown) => {
+    // A rejected cached promise would otherwise make a transient script or
+    // network failure permanent until the page is refreshed.
+    googleMapsPromise = undefined;
+    if (!window.google?.maps) {
+      document
+        .querySelector<HTMLScriptElement>('script[data-meet-where-google-maps]')
+        ?.remove();
+    }
+    throw error;
   });
 
   return googleMapsPromise;

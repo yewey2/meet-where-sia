@@ -4,6 +4,7 @@ import type {
   MrtStation,
   RailJourneyEstimate,
   RankedStation,
+  RailObjective,
 } from '../types';
 import { distanceMetrics, haversineKm } from './centroid';
 import { participantTravelTimeMetrics } from './journeyMetrics';
@@ -375,6 +376,7 @@ export function rankStationsByTravelTime(
   stations: MrtStation[],
   points: EndpointPoint[],
   center: Coordinate,
+  objective: RailObjective = 'minimax',
 ): RankedStation[] {
   const graph = buildRailGraph(stations);
   const candidates = graph.stations;
@@ -430,19 +432,39 @@ export function rankStationsByTravelTime(
       };
     })
     .filter((station): station is RankedStation => Boolean(station))
-    .sort((a, b) => {
-      // Fairness compares each person's combined journey to the meetup and
-      // onward afterwards, rather than treating each leg as a different person.
-      // The worst full outing leads; the group average breaks close ties.
-      const longestJourneyDelta = a.maxMinutes - b.maxMinutes;
-      if (Math.abs(longestJourneyDelta) > 0.05) return longestJourneyDelta;
+    .sort((a, b) => compareRankedStations(a, b, objective));
+}
 
-      const averageJourneyDelta = a.averageMinutes - b.averageMinutes;
-      if (Math.abs(averageJourneyDelta) > 0.05) return averageJourneyDelta;
+export function compareRankedStations(
+  a: RankedStation,
+  b: RankedStation,
+  objective: RailObjective,
+): number {
+  if (objective === 'average') {
+    const averageDelta = a.averageMinutes - b.averageMinutes;
+    if (Math.abs(averageDelta) > 0.05) return averageDelta;
+    const longestDelta = a.maxMinutes - b.maxMinutes;
+    if (Math.abs(longestDelta) > 0.05) return longestDelta;
+  } else if (objective === 'evenness') {
+    const varianceDelta = a.varianceMinutes - b.varianceMinutes;
+    if (Math.abs(varianceDelta) > 0.01) return varianceDelta;
+    const averageDelta = a.averageMinutes - b.averageMinutes;
+    if (Math.abs(averageDelta) > 0.05) return averageDelta;
+    const longestDelta = a.maxMinutes - b.maxMinutes;
+    if (Math.abs(longestDelta) > 0.05) return longestDelta;
+  } else {
+    // Fairness compares each person's combined journey to the meetup and
+    // onward afterwards, rather than treating each leg as a different person.
+    // The worst full outing leads; the group average breaks close ties.
+    const longestJourneyDelta = a.maxMinutes - b.maxMinutes;
+    if (Math.abs(longestJourneyDelta) > 0.05) return longestJourneyDelta;
 
-      const centerDistanceDelta = a.centroidKm - b.centroidKm;
-      if (Math.abs(centerDistanceDelta) > 0.01) return centerDistanceDelta;
+    const averageJourneyDelta = a.averageMinutes - b.averageMinutes;
+    if (Math.abs(averageJourneyDelta) > 0.05) return averageJourneyDelta;
+  }
 
-      return a.name.localeCompare(b.name);
-    });
+  const centerDistanceDelta = a.centroidKm - b.centroidKm;
+  if (Math.abs(centerDistanceDelta) > 0.01) return centerDistanceDelta;
+
+  return a.name.localeCompare(b.name);
 }

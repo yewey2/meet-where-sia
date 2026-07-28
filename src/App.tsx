@@ -41,6 +41,7 @@ import type {
   Mode,
   MrtStation,
   Participant,
+  RailObjective,
   RankedStation,
   TrainAlertPayload,
 } from './types';
@@ -67,6 +68,7 @@ function isLocationValue(value: unknown): value is LocationValue {
 function loadSavedState(): {
   participants: Participant[];
   mode: Mode;
+  railObjective: RailObjective;
 } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -74,11 +76,13 @@ function loadSavedState(): {
       return {
         participants: [createParticipant()],
         mode: 'rail',
+        railObjective: 'minimax',
       };
     }
     const parsed = JSON.parse(raw) as {
       participants?: Participant[];
       mode?: Mode;
+      railObjective?: RailObjective;
     };
 
     const participants = Array.isArray(parsed.participants)
@@ -96,11 +100,16 @@ function loadSavedState(): {
     return {
       participants: participants.length ? participants : [createParticipant()],
       mode: parsed.mode === 'distance' ? 'distance' : 'rail',
+      railObjective:
+        parsed.railObjective === 'average' || parsed.railObjective === 'evenness'
+          ? parsed.railObjective
+          : 'minimax',
     };
   } catch {
     return {
       participants: [createParticipant()],
       mode: 'rail',
+      railObjective: 'minimax',
     };
   }
 }
@@ -221,6 +230,7 @@ export default function App() {
   const saved = useMemo(loadSavedState, []);
   const [participants, setParticipants] = useState<Participant[]>(saved.participants);
   const [mode, setMode] = useState<Mode>(saved.mode);
+  const [railObjective, setRailObjective] = useState<RailObjective>(saved.railObjective);
   const [result, setResult] = useState<MeetingResult | null>(null);
   const [stations, setStations] = useState<MrtStation[]>([]);
   const [stationLoadError, setStationLoadError] = useState('');
@@ -228,12 +238,15 @@ export default function App() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [globalError, setGlobalError] = useState('');
   const autoScrolledResultRef = useRef<MeetingResult | null>(null);
+  const planRevisionRef = useRef(0);
   const hasGoogleKey = Boolean(getGoogleMapsApiKey());
   const mapPoints = useMemo(() => buildEndpointPoints(participants), [participants]);
 
   const applyRemotePlan = useCallback((plan: SharedPlan) => {
+    planRevisionRef.current += 1;
     setParticipants(plan.participants);
     setMode(plan.mode);
+    setRailObjective(plan.railObjective);
     setResult(null);
     setGlobalError('');
   }, []);
@@ -241,6 +254,7 @@ export default function App() {
   const shared = useSharedPlan({
     participants,
     mode,
+    railObjective,
     onRemotePlan: applyRemotePlan,
   });
   const hasSharedLink = Boolean(shared.requestedPlanId);
@@ -259,12 +273,12 @@ export default function App() {
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ participants, mode }),
+        JSON.stringify({ participants, mode, railObjective }),
       );
     } catch {
       // The planner still works when storage is blocked (for example, private embeds).
     }
-  }, [hasSharedLink, mode, participants]);
+  }, [hasSharedLink, mode, participants, railObjective]);
 
   useEffect(() => {
     if (!hasGoogleKey) return;
@@ -344,7 +358,9 @@ export default function App() {
   }, [isCalculating, result]);
 
   function updateParticipant(next: Participant) {
+    if (isCalculating) return;
     if (!canEditParticipant(next.id)) return;
+    planRevisionRef.current += 1;
     setParticipants((current) =>
       current.map((participant) =>
         participant.id === next.id ? next : participant,
@@ -356,7 +372,9 @@ export default function App() {
   }
 
   function addParticipant() {
+    if (isCalculating) return;
     if (!canManagePlan) return;
+    planRevisionRef.current += 1;
     const next = createParticipant();
     setParticipants((current) => [...current, next]);
     void shared.addParticipant(next).catch(() => undefined);
@@ -364,9 +382,11 @@ export default function App() {
   }
 
   function loadExample() {
+    if (isCalculating) return;
     if (shared.plan && !window.confirm('Replace every route and remove contributor logins from this shared plan?')) return;
 
     if (!canManagePlan) return;
+    planRevisionRef.current += 1;
     const nextParticipants = [
       {
         id: createId('person'),
@@ -385,19 +405,23 @@ export default function App() {
     ];
     setParticipants(nextParticipants);
     setMode('rail');
-    void shared.resetPlan(nextParticipants, 'rail').catch(() => undefined);
+    setRailObjective('minimax');
+    void shared.resetPlan(nextParticipants, 'rail', 'minimax').catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
 
   function resetPlanner() {
+    if (isCalculating) return;
     if (shared.plan && !window.confirm('Clear every route and remove contributor logins from this shared plan?')) return;
 
     if (!canManagePlan) return;
+    planRevisionRef.current += 1;
     const nextParticipants = [createParticipant()];
     setParticipants(nextParticipants);
     setMode('rail');
-    void shared.resetPlan(nextParticipants, 'rail').catch(() => undefined);
+    setRailObjective('minimax');
+    void shared.resetPlan(nextParticipants, 'rail', 'minimax').catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
@@ -432,6 +456,14 @@ export default function App() {
   }
 
   async function calculateMeetingPoint() {
+    if (isCalculating) return;
+    const calculationRevision = planRevisionRef.current;
+    const calculationParticipants = participants;
+    const calculationMode = mode;
+    const calculationRailObjective = railObjective;
+    const calculationIsCurrent = () =>
+      planRevisionRef.current === calculationRevision;
+
     setGlobalError('');
     setIsCalculating(true);
     setResult(null);
@@ -458,13 +490,14 @@ export default function App() {
       const availableStations =
         stations.length > 0
           ? stations
-          : mode === 'rail' || !hasGoogleKey
+          : calculationMode === 'rail' || !hasGoogleKey
             ? await ensureStations()
             : [];
+      if (!calculationIsCurrent()) return;
       const resolvedParticipants: Participant[] = [];
 
-      for (let index = 0; index < participants.length; index += 1) {
-        const participant = participants[index];
+      for (let index = 0; index < calculationParticipants.length; index += 1) {
+        const participant = calculationParticipants[index];
         const displayName = participant.name.trim() || `Person ${index + 1}`;
         const start = await resolveField(
           participant,
@@ -481,6 +514,8 @@ export default function App() {
               availableStations,
             );
 
+        if (!calculationIsCurrent()) return;
+
         resolvedParticipants.push({ ...participant, start, end });
       }
 
@@ -489,32 +524,27 @@ export default function App() {
         throw new Error('Add at least one valid starting point.');
       }
 
-      setParticipants(resolvedParticipants);
-      if (shared.plan) {
-        resolvedParticipants
-          .filter((participant) => canEditParticipant(participant.id))
-          .forEach(shared.scheduleParticipant);
-      }
-
-      if (mode === 'distance') {
+      let nextResult: MeetingResult;
+      if (calculationMode === 'distance') {
         const center = geometricMedian(points);
         const metrics = distanceMetrics(center, points);
         const address = await reverseGeocode(center);
         const title = address.split(',')[0]?.trim() || 'Fair distance centre';
 
-        setResult({
+        nextResult = {
           mode: 'distance',
           ...center,
           ...metrics,
           title,
           address,
-        });
+        };
       } else {
         const center = geometricMedian(points);
         const ranked = rankStationsByTravelTime(
           availableStations,
           points,
           center,
+          calculationRailObjective,
         );
         const selected = ranked[0];
 
@@ -522,8 +552,9 @@ export default function App() {
           throw new Error('No connected MRT/LRT station could be compared.');
         }
 
-        setResult({
+        nextResult = {
           mode: 'rail',
+          objective: calculationRailObjective,
           lat: selected.lat,
           lng: selected.lng,
           title: `${selected.name} ${selected.network}`,
@@ -537,11 +568,21 @@ export default function App() {
           totalMinutes: selected.totalMinutes,
           averageMinutes: selected.averageMinutes,
           maxMinutes: selected.maxMinutes,
-        });
+        };
 
         void fetchTrainAlerts().then(setTrainAlerts).catch(() => undefined);
       }
+
+      if (!calculationIsCurrent()) return;
+      setParticipants(resolvedParticipants);
+      setResult(nextResult);
+      if (shared.plan) {
+        resolvedParticipants
+          .filter((participant) => canEditParticipant(participant.id))
+          .forEach(shared.scheduleParticipant);
+      }
     } catch (error) {
+      if (!calculationIsCurrent()) return;
       if (error instanceof FieldResolutionError) {
         setParticipants((current) =>
           current.map((participant) => {
@@ -570,7 +611,11 @@ export default function App() {
   const modeDescription =
     mode === 'distance'
       ? 'Balances straight-line distance for the whole group.'
-      : 'Balances everyone’s estimated MRT/LRT journey time.';
+      : railObjective === 'average'
+        ? 'Finds the lowest average full journey time for the group.'
+        : railObjective === 'evenness'
+          ? 'Finds the most even full journey times across the group.'
+          : 'Keeps the longest full journey as short as possible.';
 
   return (
     <div className="app-shell">
@@ -603,18 +648,22 @@ export default function App() {
             onChangePassword={async (password) => { await shared.changePassword(password); }}
             onLogout={shared.logout}
             onDelete={async () => {
+              planRevisionRef.current += 1;
               await shared.deletePlan();
               const localPlan = loadSavedState();
               setParticipants(localPlan.participants);
               setMode(localPlan.mode);
+              setRailObjective(localPlan.railObjective);
               setResult(null);
               setGlobalError('');
             }}
-            onLeave={() => {
-              shared.leavePlan();
+            onLeave={async () => {
+              planRevisionRef.current += 1;
+              await shared.leavePlan();
               const localPlan = loadSavedState();
               setParticipants(localPlan.participants);
               setMode(localPlan.mode);
+              setRailObjective(localPlan.railObjective);
               setResult(null);
               setGlobalError('');
             }}
@@ -640,7 +689,7 @@ export default function App() {
                 <div className="section-label"><UsersIcon /> Who’s meeting?</div>
                 <p>{participants.length} {participants.length === 1 ? 'person' : 'people'} added</p>
               </div>
-              <button type="button" className="text-button" disabled={!canManagePlan} onClick={loadExample}>
+              <button type="button" className="text-button" disabled={isCalculating || !canManagePlan} onClick={loadExample}>
                 Use sample
               </button>
             </div>
@@ -653,8 +702,8 @@ export default function App() {
                   index={index}
                   stations={stations}
                   canRemove={canManagePlan && participants.length > 1}
-                  canEditName={canManagePlan}
-                  readOnly={!canEditParticipant(participant.id)}
+                  canEditName={!isCalculating && canManagePlan}
+                  readOnly={isCalculating || !canEditParticipant(participant.id)}
                   onChange={updateParticipant}
                   onRemove={() => {
                     setParticipants((current) =>
@@ -669,7 +718,7 @@ export default function App() {
             </div>
 
             {canManagePlan ? (
-              <button type="button" className="add-person-button" onClick={addParticipant}>
+              <button type="button" className="add-person-button" disabled={isCalculating} onClick={addParticipant}>
                 <PlusIcon /> Add a friend
               </button>
             ) : null}
@@ -695,7 +744,7 @@ export default function App() {
                     name="meeting-mode"
                     value="rail"
                     checked={mode === 'rail'}
-                    disabled={!canManagePlan}
+                    disabled={isCalculating || !canManagePlan}
                     onChange={() => {
                       setMode('rail');
                       void shared.setMode('rail').catch(() => undefined);
@@ -712,7 +761,7 @@ export default function App() {
                     name="meeting-mode"
                     value="distance"
                     checked={mode === 'distance'}
-                    disabled={!canManagePlan}
+                    disabled={isCalculating || !canManagePlan}
                     onChange={() => {
                       setMode('distance');
                       void shared.setMode('distance').catch(() => undefined);
@@ -724,11 +773,70 @@ export default function App() {
                   <span><strong>By distance</strong><small>Balances kilometres</small></span>
                 </label>
               </fieldset>
+              {mode === 'rail' ? (
+                <fieldset className="rail-objective-picker">
+                  <legend>What should the rail recommendation optimise?</legend>
+                  <label>
+                    <input
+                      type="radio"
+                      name="rail-objective"
+                      value="minimax"
+                      checked={railObjective === 'minimax'}
+                      disabled={isCalculating || !canManagePlan}
+                      onChange={() => {
+                        setRailObjective('minimax');
+                        void shared.setRailObjective('minimax').catch(() => undefined);
+                        setResult(null);
+                        setGlobalError('');
+                      }}
+                    />
+                    <span><strong>Shortest longest journey</strong><small>Protects the person with the longest full trip</small></span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="rail-objective"
+                      value="average"
+                      checked={railObjective === 'average'}
+                      disabled={isCalculating || !canManagePlan}
+                      onChange={() => {
+                        setRailObjective('average');
+                        void shared.setRailObjective('average').catch(() => undefined);
+                        setResult(null);
+                        setGlobalError('');
+                      }}
+                    />
+                    <span><strong>Lowest group average</strong><small>Minimises everyone’s combined travel time</small></span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="rail-objective"
+                      value="evenness"
+                      checked={railObjective === 'evenness'}
+                      disabled={isCalculating || !canManagePlan}
+                      onChange={() => {
+                        setRailObjective('evenness');
+                        void shared.setRailObjective('evenness').catch(() => undefined);
+                        setResult(null);
+                        setGlobalError('');
+                      }}
+                    />
+                    <span><strong>Most even journeys</strong><small>Minimises the spread between people’s full trips</small></span>
+                  </label>
+                </fieldset>
+              ) : null}
               {mode === 'rail' && stationLoadError ? (
                 <p className="inline-warning">Rail data is unavailable right now. {stationLoadError}</p>
               ) : null}
             </div>
           </details>
+
+          {!hasGoogleKey ? (
+            <p className="inline-warning" role="status">
+              Google place search is not configured. Locations remain limited to MRT/LRT stations and Singapore coordinates until the deployment API key is updated.
+            </p>
+          ) : null}
 
           {globalError ? (
             <div className="global-error" role="alert">
@@ -757,7 +865,7 @@ export default function App() {
 
           <div className="planner-footnote">
             <span>{shared.plan ? `${shared.plan.memberCount} ${shared.plan.memberCount === 1 ? 'editor' : 'editors'} · ${currentSharedMember ? shared.syncLabel : 'Public view'}` : 'Plan saved on this device'}</span>
-            {canManagePlan ? <button type="button" onClick={resetPlanner}>Clear plan</button> : null}
+            {canManagePlan ? <button type="button" disabled={isCalculating} onClick={resetPlanner}>Clear plan</button> : null}
           </div>
         </section>
 

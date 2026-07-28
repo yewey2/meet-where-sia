@@ -1,4 +1,4 @@
-import type { Mode, Participant } from '../types';
+import type { Mode, Participant, RailObjective } from '../types';
 
 export type SharedMemberRole = 'owner' | 'member';
 
@@ -15,6 +15,7 @@ export interface SharedPlan {
   id: string;
   title: string;
   mode: Mode;
+  railObjective: RailObjective;
   participants: Participant[];
   createdAt: string;
   updatedAt: string;
@@ -30,7 +31,8 @@ export type PlanMutation =
   | { type: 'addParticipant'; participant: Participant }
   | { type: 'removeParticipant'; participantId: string }
   | { type: 'setMode'; mode: Mode }
-  | { type: 'resetPlan'; participants: Participant[]; mode: Mode }
+  | { type: 'setRailObjective'; railObjective: RailObjective }
+  | { type: 'resetPlan'; participants: Participant[]; mode: Mode; railObjective: RailObjective }
   | { type: 'renamePlan'; title: string }
   | { type: 'setJoining'; enabled: boolean }
   | { type: 'createInvite'; participantId: string }
@@ -87,6 +89,7 @@ export async function createSharedPlan(input: {
   password: string;
   participants: Participant[];
   mode: Mode;
+  railObjective: RailObjective;
 }) {
   const response = await api<{ plan: SharedPlan }>('/api/plans', {
     method: 'POST',
@@ -134,9 +137,10 @@ export async function createClaimInvite(planId: string, participantId: string) {
   });
 }
 
-export async function mutateSharedPlan(planId: string, mutation: PlanMutation) {
+export async function mutateSharedPlan(planId: string, mutation: PlanMutation, keepalive = false) {
   const response = await api<{ plan: SharedPlan }>('/api/plans', {
     method: 'POST',
+    keepalive,
     body: JSON.stringify({ action: 'mutate', planId, mutation }),
   });
   return response.plan;
