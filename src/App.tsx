@@ -97,7 +97,7 @@ function loadSavedState(): {
       return {
         participants: [createParticipant()],
         mode: 'rail',
-        railObjective: 'minimax',
+        railObjective: 'average',
       };
     }
     const parsed = JSON.parse(raw) as {
@@ -124,15 +124,15 @@ function loadSavedState(): {
         : [createParticipant()],
       mode: parsed.mode === 'distance' ? 'distance' : 'rail',
       railObjective:
-        parsed.railObjective === 'average' || parsed.railObjective === 'evenness'
+        parsed.railObjective === 'minimax' || parsed.railObjective === 'evenness'
           ? parsed.railObjective
-          : 'minimax',
+          : 'average',
     };
   } catch {
     return {
       participants: [createParticipant()],
       mode: 'rail',
-      railObjective: 'minimax',
+      railObjective: 'average',
     };
   }
 }
@@ -446,8 +446,8 @@ export default function App() {
     ];
     setParticipants(nextParticipants);
     setMode('rail');
-    setRailObjective('minimax');
-    void shared.resetPlan(nextParticipants, 'rail', 'minimax').catch(() => undefined);
+    setRailObjective('average');
+    void shared.resetPlan(nextParticipants, 'rail', 'average').catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
@@ -461,8 +461,8 @@ export default function App() {
     const nextParticipants = [createParticipant()];
     setParticipants(nextParticipants);
     setMode('rail');
-    setRailObjective('minimax');
-    void shared.resetPlan(nextParticipants, 'rail', 'minimax').catch(() => undefined);
+    setRailObjective('average');
+    void shared.resetPlan(nextParticipants, 'rail', 'average').catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
@@ -667,7 +667,7 @@ export default function App() {
     mode === 'distance'
       ? 'Balances straight-line distance for the whole group.'
       : railObjective === 'average'
-        ? 'Finds the lowest average full journey time for the group.'
+        ? 'Minimises the group\'s combined full journey time.'
         : railObjective === 'evenness'
           ? 'Finds the most even full journey times across the group.'
           : 'Keeps the longest full journey as short as possible.';
@@ -835,6 +835,22 @@ export default function App() {
                     <input
                       type="radio"
                       name="rail-objective"
+                      value="average"
+                      checked={railObjective === 'average'}
+                      disabled={isCalculating || !canManagePlan}
+                      onChange={() => {
+                        setRailObjective('average');
+                        void shared.setRailObjective('average').catch(() => undefined);
+                        setResult(null);
+                        setGlobalError('');
+                      }}
+                    />
+                    <span><strong>Lowest total travel time</strong><small>Minimises everyone’s combined full journeys</small></span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="rail-objective"
                       value="minimax"
                       checked={railObjective === 'minimax'}
                       disabled={isCalculating || !canManagePlan}
@@ -846,22 +862,6 @@ export default function App() {
                       }}
                     />
                     <span><strong>Shortest longest journey</strong><small>Protects the person with the longest full trip</small></span>
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="rail-objective"
-                      value="average"
-                      checked={railObjective === 'average'}
-                      disabled={isCalculating || !canManagePlan}
-                      onChange={() => {
-                        setRailObjective('average');
-                        void shared.setRailObjective('average').catch(() => undefined);
-                        setResult(null);
-                        setGlobalError('');
-                      }}
-                    />
-                    <span><strong>Lowest group average</strong><small>Minimises everyone’s combined travel time</small></span>
                   </label>
                   <label>
                     <input

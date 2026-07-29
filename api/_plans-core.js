@@ -867,9 +867,9 @@ function publicPlan(plan, currentMember) {
     id: plan.id,
     title: plan.title,
     mode: plan.mode,
-    railObjective: plan.railObjective === 'average' || plan.railObjective === 'evenness'
+    railObjective: plan.railObjective === 'minimax' || plan.railObjective === 'evenness'
       ? plan.railObjective
-      : 'minimax',
+      : 'average',
     participants: plan.participants.map((participant) => {
       const { nameKey: _nameKey, ...visible } = participant;
       return visible;
@@ -936,9 +936,9 @@ async function validateMutation(input, plan) {
     case 'setRailObjective':
       return {
         type: input.type,
-        railObjective: input.railObjective === 'average' || input.railObjective === 'evenness'
+        railObjective: input.railObjective === 'minimax' || input.railObjective === 'evenness'
           ? input.railObjective
-          : 'minimax',
+          : 'average',
         updatedAt,
       };
     case 'resetPlan':
@@ -946,9 +946,9 @@ async function validateMutation(input, plan) {
         type: input.type,
         participants: validateParticipants(input.participants),
         mode: input.mode === 'distance' ? 'distance' : 'rail',
-        railObjective: input.railObjective === 'average' || input.railObjective === 'evenness'
+        railObjective: input.railObjective === 'minimax' || input.railObjective === 'evenness'
           ? input.railObjective
-          : 'minimax',
+          : 'average',
         updatedAt,
       };
     case 'renamePlan': {
@@ -1059,9 +1059,9 @@ export function createPlansHandler({ store: injectedStore } = {}) {
             id: planId,
             title,
             mode: body.mode === 'distance' ? 'distance' : 'rail',
-            railObjective: body.railObjective === 'average' || body.railObjective === 'evenness'
+            railObjective: body.railObjective === 'minimax' || body.railObjective === 'evenness'
               ? body.railObjective
-              : 'minimax',
+              : 'average',
             joiningEnabled: true,
             participants,
             members: [owner],

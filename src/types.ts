@@ -72,6 +72,9 @@ export interface RankedStation extends MrtStation {
   varianceMinutes: number;
   standardDeviationMinutes: number;
   totalTransfers: number;
+  groupRadiusKm: number;
+  geographicDetourKm: number;
+  hasGeographicDetour: boolean;
   journeys: RailJourneyEstimate[];
   lineCodes: string[];
 }

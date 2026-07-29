@@ -9,7 +9,7 @@ Meet Where Sia is a Singapore-focused meetup planner that finds a fair, practica
 ## Why use it?
 
 - **Plan for the whole group.** Add any number of people, with separate start and end locations when a return journey is not enough.
-- **Optimise for fairness.** Rail recommendations minimise the longest estimated journey first, then use the group average as a tie-breaker.
+- **Minimise total travel by default.** Rail recommendations default to the lowest group-average journey, which is equivalent to minimising the group total for a fixed number of people. Fairness-first and evenness options remain available.
 - **Share one live plan.** Create a link, let friends add or update their own route, and keep organiser controls separate.
 - **Find somewhere nearby.** Explore hawker centres, attractions, coffee, activities, and outdoor options around the result.
 - **Use it without paid APIs.** Exact MRT/LRT station names, Singapore coordinates, official station data, and the OpenStreetMap fallback work without a Google key.
@@ -38,7 +38,9 @@ Every endpoint is attached to its nearest connected station. The planner runs sh
 - time on each rail segment; and
 - interchange walking and transfer waits.
 
-Candidate stations are ranked by the lowest worst-case journey, then the lowest group average, then proximity to the group's geometric centre. This makes the result favour fairness without ignoring total travel time.
+By default, candidate stations are ranked by the lowest group-average journey (and therefore the lowest group total), then the shortest longest journey, then proximity to the group's geometric median. Fairness-first and journey-evenness objectives are also available.
+
+Rail topology can occasionally make a distant interchange look fastest for nearby places on different lines. The planner keeps that rail-only result, but uses the locations' geometric median and geographic radius to flag stations that sit well outside the group's area. In those cases it suggests checking a bus or another direct public-transport route rather than claiming to model a bus journey it has not calculated.
 
 The graph is represented in [`src/lib/railGraph.ts`](src/lib/railGraph.ts). Station names and coordinates come from official runtime data where available, while journey timings are explicit planning estimates—not official timetables. They do not model exact walking routes, fares, accessibility, crowding, or time-of-day service patterns.
 

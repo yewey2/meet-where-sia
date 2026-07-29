@@ -279,15 +279,21 @@ test('rail objective is created, mutated, reset, and exposed with an old-plan de
   });
   assert.equal(changed.body.plan.railObjective, 'evenness');
 
+  const fairnessFirst = await request(handler, {
+    method: 'POST', cookie,
+    body: { action: 'mutate', planId, mutation: { type: 'setRailObjective', railObjective: 'minimax' } },
+  });
+  assert.equal(fairnessFirst.body.plan.railObjective, 'minimax');
+
   const reset = await request(handler, {
     method: 'POST', cookie,
     body: { action: 'mutate', planId, mutation: { type: 'resetPlan', participants: [participant], mode: 'rail' } },
   });
-  assert.equal(reset.body.plan.railObjective, 'minimax');
+  assert.equal(reset.body.plan.railObjective, 'average');
 
   const stored = await store.get(`mws:plan:${planId}`);
   delete stored.railObjective;
   await store.set(`mws:plan:${planId}`, stored);
   const oldPlan = await request(handler, { url: `/api/plans?planId=${planId}` });
-  assert.equal(oldPlan.body.plan.railObjective, 'minimax');
+  assert.equal(oldPlan.body.plan.railObjective, 'average');
 });

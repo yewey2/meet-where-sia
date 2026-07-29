@@ -46,6 +46,11 @@ export const RAIL_MODEL = {
   stationDwellMinutes: 0.5,
 } as const;
 
+export const RAIL_LOCALITY_MODEL = {
+  minOutsideRadiusKm: 2,
+  minCenterDistanceRatio: 1.5,
+} as const;
+
 // Current passenger network as of July 2026. Station coordinates and names are
 // still supplied at runtime by LTA's official station-exit dataset.
 const RAIL_LINES: RailLine[] = [
@@ -376,11 +381,15 @@ export function rankStationsByTravelTime(
   stations: MrtStation[],
   points: EndpointPoint[],
   center: Coordinate,
-  objective: RailObjective = 'minimax',
+  objective: RailObjective = 'average',
 ): RankedStation[] {
   const graph = buildRailGraph(stations);
   const candidates = graph.stations;
   if (candidates.length === 0) return [];
+  const groupRadiusKm = Math.max(
+    0,
+    ...points.map((point) => haversineKm(center, point)),
+  );
 
   const endpointPaths = points.map((point) => {
     const origin = nearestGraphStation(point, graph.stations);
@@ -421,18 +430,47 @@ export function rankStationsByTravelTime(
       }
 
       const participantTimeMetrics = participantTravelTimeMetrics(journeys);
+      const centroidKm = haversineKm(center, station);
+      const geographicDetourKm = Math.max(0, centroidKm - groupRadiusKm);
       return {
         ...station,
         ...distanceMetrics(station, points),
-        centroidKm: haversineKm(center, station),
+        centroidKm,
         ...participantTimeMetrics,
         totalTransfers: journeys.reduce((sum, journey) => sum + journey.transfers, 0),
+        groupRadiusKm,
+        geographicDetourKm,
+        hasGeographicDetour: hasSignificantGeographicDetour(
+          centroidKm,
+          groupRadiusKm,
+        ),
         journeys,
         lineCodes,
       };
     })
     .filter((station): station is RankedStation => Boolean(station))
     .sort((a, b) => compareRankedStations(a, b, objective));
+}
+
+export function hasSignificantGeographicDetour(
+  stationDistanceFromCenterKm: number,
+  groupRadiusKm: number,
+): boolean {
+  if (
+    !Number.isFinite(stationDistanceFromCenterKm) ||
+    !Number.isFinite(groupRadiusKm) ||
+    stationDistanceFromCenterKm < 0 ||
+    groupRadiusKm < 0
+  ) {
+    return false;
+  }
+
+  const outsideRadiusKm = stationDistanceFromCenterKm - groupRadiusKm;
+  return (
+    outsideRadiusKm > RAIL_LOCALITY_MODEL.minOutsideRadiusKm &&
+    stationDistanceFromCenterKm >
+      groupRadiusKm * RAIL_LOCALITY_MODEL.minCenterDistanceRatio
+  );
 }
 
 export function compareRankedStations(

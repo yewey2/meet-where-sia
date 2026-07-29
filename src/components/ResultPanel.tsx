@@ -47,13 +47,13 @@ function formatMinutes(value: number): string {
 }
 
 function objectiveLabel(objective: RailObjective): string {
-  if (objective === 'average') return 'Lowest group average';
+  if (objective === 'average') return 'Lowest total travel time';
   if (objective === 'evenness') return 'Most even journeys';
   return 'Shortest longest journey';
 }
 
 function objectiveMetric(station: RankedStation, objective: RailObjective): string {
-  if (objective === 'average') return `${formatMinutes(station.averageMinutes)} average`;
+  if (objective === 'average') return `${formatMinutes(station.totalMinutes)} group total`;
   if (objective === 'evenness') return `${formatMinutes(station.standardDeviationMinutes)} spread`;
   return `${formatMinutes(station.maxMinutes)} longest total`;
 }
@@ -421,7 +421,7 @@ export function ResultPanel({
           <span>
             {result.mode === 'rail'
               ? result.objective === 'average'
-                ? 'Group average'
+                ? 'Group total'
                 : result.objective === 'evenness'
                   ? 'Journey-time spread'
                   : 'Longest full outing'
@@ -430,7 +430,7 @@ export function ResultPanel({
           <strong>
             {result.mode === 'rail'
               ? result.objective === 'average'
-                ? formatMinutes(result.averageMinutes)
+                ? formatMinutes(result.totalMinutes)
                 : result.objective === 'evenness'
                   ? formatMinutes(result.station.standardDeviationMinutes)
                   : formatMinutes(result.maxMinutes)
@@ -516,7 +516,18 @@ export function ResultPanel({
       ) : null}
 
       {result.mode === 'rail' ? (
-        <p className="result-tip">Confirm the station exit or venue with your group.</p>
+        <p className="result-tip">
+          {result.station.hasGeographicDetour ? (
+            <>
+              <strong>Rail may be a detour.</strong>{' '}
+              This station sits well outside the area covered by your locations.
+              Try <strong>By distance</strong> for a nearby centre, then check
+              whether a bus or another direct public-transport route is faster.
+            </>
+          ) : (
+            'Confirm the station exit or venue with your group.'
+          )}
+        </p>
       ) : null}
 
       <div className="result-actions">
@@ -580,7 +591,7 @@ export function ResultPanel({
         <summary>How this was chosen</summary>
         <p className="method-note">
           {result.mode === 'rail'
-            ? `${objectiveLabel(result.objective)} was selected. Compared ${result.candidateCount} connected stations using each person's combined trip to the meetup and onwards afterwards. ${result.objective === 'average' ? 'Stations were ranked by the group’s average total time.' : result.objective === 'evenness' ? 'Stations were ranked by the variance in people’s total times, with average and longest time used to break close ties.' : 'Stations were ranked by the longest participant total, with the group average used to break close ties.'} Estimates include walking, waiting, train travel and transfers, but not buses.`
+            ? `${objectiveLabel(result.objective)} was selected. Compared ${result.candidateCount} connected stations using each person's combined trip to the meetup and onwards afterwards. ${result.objective === 'average' ? 'Stations were ranked by the group’s combined time; for a fixed group this is equivalent to ranking by its average.' : result.objective === 'evenness' ? 'Stations were ranked by the variance in people’s total times, with average and longest time used to break close ties.' : 'Stations were ranked by the longest participant total, with the group average used to break close ties.'} Estimates include walking, waiting, train travel and transfers, but not buses.`
             : 'This point approximately minimises the combined straight-line distance to every location.'}
         </p>
       </details>

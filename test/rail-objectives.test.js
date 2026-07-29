@@ -58,3 +58,12 @@ test('rail objectives use centroid proximity and station name as stable tie-brea
     assert.ok(compareRankedStations(alphabetical, nearer, objective) < 0);
   }
 });
+
+test('rail locality warning requires a large absolute and relative detour', async () => {
+  const { hasSignificantGeographicDetour } = await loadRailGraph();
+
+  assert.equal(hasSignificantGeographicDetour(6, 2), true);
+  assert.equal(hasSignificantGeographicDetour(3, 2), false);
+  assert.equal(hasSignificantGeographicDetour(13, 10), false);
+  assert.equal(hasSignificantGeographicDetour(Number.NaN, 2), false);
+});

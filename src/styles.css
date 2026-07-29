@@ -2540,6 +2540,10 @@ body {
   line-height: 1.45;
 }
 
+.result-tip strong {
+  color: var(--ink);
+}
+
 .result-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
