@@ -15,6 +15,10 @@ const SESSION_SECONDS = 60 * 60 * 24 * 30;
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_MEMBERS = 12;
 const MAX_PARTICIPANTS = 24;
+const PARTICIPANT_COLORS = new Set([
+  'coral', 'orange', 'amber', 'green', 'teal',
+  'cyan', 'blue', 'indigo', 'purple', 'pink',
+]);
 const PASSWORD_MIN_LENGTH = 6;
 const CLAIM_INVITE_SECONDS = 60 * 60 * 24 * 7;
 
@@ -94,7 +98,7 @@ function validateParticipant(value) {
     throw new ClientError(400, 'A participant identifier is invalid.');
   }
   const name = cleanText(value.name, 80);
-  return {
+  const participant = {
     id,
     name,
     nameKey: normalizedName(name),
@@ -102,6 +106,13 @@ function validateParticipant(value) {
     start: validateLocation(value.start),
     end: validateLocation(value.end),
   };
+  if (value.color !== undefined) {
+    if (!PARTICIPANT_COLORS.has(value.color)) {
+      throw new ClientError(400, 'A participant colour is invalid.');
+    }
+    participant.color = value.color;
+  }
+  return participant;
 }
 
 function validateParticipants(value) {
@@ -111,6 +122,40 @@ function validateParticipants(value) {
   const participants = value.map(validateParticipant);
   if (new Set(participants.map((participant) => participant.id)).size !== participants.length) {
     throw new ClientError(400, 'Participant identifiers must be unique.');
+  }
+  return ensureParticipantColors(participants);
+}
+
+function pickParticipantColor(participants) {
+  const counts = new Map([...PARTICIPANT_COLORS].map((color) => [color, 0]));
+  for (const participant of participants) {
+    if (PARTICIPANT_COLORS.has(participant.color)) {
+      counts.set(participant.color, counts.get(participant.color) + 1);
+    }
+  }
+  const lowestUsage = Math.min(...counts.values());
+  const choices = [...PARTICIPANT_COLORS].filter(
+    (color) => counts.get(color) === lowestUsage,
+  );
+  return choices[randomBytes(4).readUInt32BE(0) % choices.length];
+}
+
+function ensureParticipantColors(participants) {
+  const counts = new Map([...PARTICIPANT_COLORS].map((color) => [color, 0]));
+  for (const participant of participants) {
+    if (PARTICIPANT_COLORS.has(participant.color)) {
+      counts.set(participant.color, counts.get(participant.color) + 1);
+    }
+  }
+  for (const participant of participants) {
+    if (PARTICIPANT_COLORS.has(participant.color)) continue;
+    const lowestUsage = Math.min(...counts.values());
+    const choices = [...PARTICIPANT_COLORS].filter(
+      (color) => counts.get(color) === lowestUsage,
+    );
+    const stableIndex = Number.parseInt(digest(participant.id).slice(0, 8), 16);
+    participant.color = choices[stableIndex % choices.length];
+    counts.set(participant.color, counts.get(participant.color) + 1);
   }
   return participants;
 }
@@ -815,6 +860,7 @@ async function loadViewer(store, request, planId) {
 }
 
 function publicPlan(plan, currentMember) {
+  ensureParticipantColors(plan.participants);
   const ownerView = currentMember?.role === 'owner';
   return {
     schemaVersion: plan.schemaVersion || 1,
@@ -1102,6 +1148,7 @@ export function createPlansHandler({ store: injectedStore } = {}) {
           id: `person_${id(12)}`,
           name: username,
           nameKey: usernameKey,
+          color: pickParticipantColor(plan.participants),
           sameAsStart: true,
           start: { query: '', status: 'empty' },
           end: { query: '', status: 'empty' },

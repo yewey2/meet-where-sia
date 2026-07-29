@@ -9,6 +9,10 @@ import {
   googleMapTileUrl,
 } from '../lib/googleMapTiles';
 import { SINGAPORE_CENTER } from '../lib/location';
+import {
+  participantColorOption,
+  type ParticipantColorOption,
+} from '../lib/participantColors';
 
 interface MapPanelProps {
   points: EndpointPoint[];
@@ -38,30 +42,76 @@ function escapeHtml(value: string): string {
   );
 }
 
-function markerElement(kind: MarkerKind, text: string) {
+function markerElement(
+  kind: MarkerKind,
+  text: string,
+  color?: ParticipantColorOption,
+) {
   const element = document.createElement('div');
   element.className = `map-marker map-marker-${kind}`;
   element.textContent = text;
+  if (color) {
+    element.style.setProperty('--participant-light', color.light);
+    element.style.setProperty('--participant-dark', color.dark);
+  }
   return element;
 }
 
-function leafletMarkerIcon(kind: MarkerKind, text: string) {
+function leafletMarkerIcon(
+  kind: MarkerKind,
+  text: string,
+  color?: ParticipantColorOption,
+  offset?: { x: number; y: number },
+) {
   const size = kind === 'result' ? 39 : kind === 'alternative' ? 25 : 30;
-  const element = markerElement(kind, text);
+  const element = markerElement(kind, text, color);
+  const markerOffset = offset ?? { x: 0, y: 0 };
 
   return L.divIcon({
     className: 'leaflet-map-marker',
     html: element.outerHTML,
     iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+    iconAnchor: [size / 2 - markerOffset.x, size / 2 - markerOffset.y],
   });
+}
+
+function endpointOffsets(points: EndpointPoint[]): Map<string, { x: number; y: number }> {
+  const groups = new Map<string, EndpointPoint[]>();
+  for (const point of points) {
+    const key = `${point.lat.toFixed(6)},${point.lng.toFixed(6)}`;
+    groups.set(key, [...(groups.get(key) ?? []), point]);
+  }
+
+  const offsets = new Map<string, { x: number; y: number }>();
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      offsets.set(group[0].id, { x: 0, y: 0 });
+      continue;
+    }
+
+    const ordered = [...group].sort((left, right) => {
+      if (left.participantId === right.participantId) {
+        return left.kind === 'start' ? -1 : 1;
+      }
+      return left.markerLabel.localeCompare(right.markerLabel, undefined, { numeric: true });
+    });
+    const radius = group.length === 2 ? 13 : Math.min(21, 11 + group.length * 1.5);
+    ordered.forEach((point, index) => {
+      const angle = -Math.PI / 2 + (index * Math.PI * 2) / ordered.length;
+      offsets.set(point.id, {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+      });
+    });
+  }
+  return offsets;
 }
 
 function MapLegend() {
   return (
     <div className="map-legend" aria-label="Map legend">
-      <span><i className="legend-dot legend-start" />Start</span>
-      <span><i className="legend-dot legend-end" />End</span>
+      <span><i className="legend-dot legend-start" />Light: start</span>
+      <span><i className="legend-dot legend-end" />Dark: end</span>
       <span><i className="legend-dot legend-result" />Meeting point</span>
     </div>
   );
@@ -187,13 +237,17 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
 
     overlays.clearLayers();
     const bounds = L.latLngBounds([]);
+    const offsets = endpointOffsets(points);
 
     for (const point of points) {
-      L.marker([point.lat, point.lng], {
+      const color = participantColorOption(point.participantColor);
+      const marker = L.marker([point.lat, point.lng], {
         alt: `${point.participantName} ${point.kind}`,
         icon: leafletMarkerIcon(
           point.kind,
-          point.kind === 'start' ? 'S' : 'E',
+          point.markerLabel,
+          color,
+          offsets.get(point.id),
         ),
         keyboard: true,
         title: `${point.participantName}: ${
@@ -201,6 +255,12 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
         } — ${point.label}`,
         zIndexOffset: 500,
       }).addTo(overlays);
+      marker.bindTooltip(
+        `${escapeHtml(point.participantName)}: ${
+          point.kind === 'start' ? 'start' : 'end'
+        } — ${escapeHtml(point.label)}`,
+        { direction: 'top', offset: [0, -16] },
+      );
       bounds.extend([point.lat, point.lng]);
 
       if (result) {
@@ -210,7 +270,7 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
             [result.lat, result.lng],
           ],
           {
-            color: '#7b8090',
+            color: color.dark,
             interactive: false,
             opacity: 0.34,
             weight: 1.5,
@@ -220,13 +280,17 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
     }
 
     if (result) {
-      L.marker([result.lat, result.lng], {
+      const resultMarker = L.marker([result.lat, result.lng], {
         alt: `Meeting point: ${result.title}`,
         icon: leafletMarkerIcon('result', result.mode === 'rail' ? 'M' : '★'),
         keyboard: true,
         title: result.title,
         zIndexOffset: 2000,
       }).addTo(overlays);
+      resultMarker.bindTooltip(escapeHtml(result.title), {
+        direction: 'top',
+        offset: [0, -20],
+      });
       bounds.extend([result.lat, result.lng]);
 
       if (result.mode === 'rail') {
@@ -236,10 +300,14 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
           const marker = L.marker([alternative.lat, alternative.lng], {
             alt: `Choose alternative: ${alternative.name} ${alternative.network}`,
             icon: leafletMarkerIcon('alternative', 'M'),
-            keyboard: false,
+            keyboard: true,
             title: `Choose ${alternative.name} ${alternative.network}`,
             zIndexOffset: 200,
           }).addTo(overlays);
+          marker.bindTooltip(
+            `${escapeHtml(alternative.name)} ${escapeHtml(alternative.network)} — click to choose`,
+            { direction: 'top', offset: [0, -14] },
+          );
           marker.on('click', () => onSelectStation(alternative));
           bounds.extend([alternative.lat, alternative.lng]);
         }

@@ -1,5 +1,16 @@
 export type Mode = 'distance' | 'rail';
 export type RailObjective = 'minimax' | 'average' | 'evenness';
+export type ParticipantColor =
+  | 'coral'
+  | 'orange'
+  | 'amber'
+  | 'green'
+  | 'teal'
+  | 'cyan'
+  | 'blue'
+  | 'indigo'
+  | 'purple'
+  | 'pink';
 
 export type LocationStatus =
   | 'empty'
@@ -20,6 +31,7 @@ export interface LocationValue {
 export interface Participant {
   id: string;
   name: string;
+  color: ParticipantColor;
   sameAsStart: boolean;
   start: LocationValue;
   end: LocationValue;
@@ -29,6 +41,8 @@ export interface EndpointPoint {
   id: string;
   participantId: string;
   participantName: string;
+  participantColor: ParticipantColor;
+  markerLabel: string;
   kind: 'start' | 'end';
   label: string;
   lat: number;

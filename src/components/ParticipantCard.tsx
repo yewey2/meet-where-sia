@@ -1,4 +1,9 @@
+import type { CSSProperties } from 'react';
 import type { MrtStation, Participant } from '../types';
+import {
+  PARTICIPANT_COLORS,
+  participantColorOption,
+} from '../lib/participantColors';
 import { TrashIcon } from './Icons';
 import { LocationInput } from './LocationInput';
 
@@ -25,9 +30,18 @@ export function ParticipantCard({
 }: ParticipantCardProps) {
   const displayName = participant.name.trim() || `Person ${index + 1}`;
   const namePlaceholder = index === 0 ? 'You' : `Friend ${index + 1}`;
+  const selectedColor = participantColorOption(participant.color);
+  const participantStyle = {
+    '--participant-light': selectedColor.light,
+    '--participant-dark': selectedColor.dark,
+  } as CSSProperties;
 
   return (
-    <article className="participant-card" aria-label={`Person ${index + 1}: ${displayName}`}>
+    <article
+      className="participant-card"
+      aria-label={`Person ${index + 1}: ${displayName}`}
+      style={participantStyle}
+    >
       <div className="participant-heading">
         <div className="participant-number" aria-hidden="true">
           {index + 1}
@@ -55,6 +69,28 @@ export function ParticipantCard({
         >
           <TrashIcon />
         </button>
+      </div>
+
+      <div className="participant-color-picker" role="group" aria-label={`Map colour for ${displayName}`}>
+        <span>Map colour</span>
+        <div className="participant-color-options">
+          {PARTICIPANT_COLORS.map((color) => (
+            <button
+              type="button"
+              key={color.id}
+              className="participant-color-option"
+              style={{
+                '--swatch-light': color.light,
+                '--swatch-dark': color.dark,
+              } as CSSProperties}
+              aria-label={`Use ${color.label} for ${displayName}`}
+              aria-pressed={participant.color === color.id}
+              title={`${color.label}: light start, dark end`}
+              disabled={readOnly}
+              onClick={() => onChange({ ...participant, color: color.id })}
+            />
+          ))}
+        </div>
       </div>
 
       <div

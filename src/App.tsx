@@ -40,6 +40,10 @@ import {
   rankStationsByTravelTime,
 } from './lib/railGraph';
 import { useSharedPlan } from './lib/useSharedPlan';
+import {
+  normalizeParticipantColors,
+  pickParticipantColor,
+} from './lib/participantColors';
 import type { SharedPlan } from './lib/groupPlans';
 import type {
   EndpointPoint,
@@ -48,6 +52,7 @@ import type {
   Mode,
   MrtStation,
   Participant,
+  ParticipantColor,
   RailObjective,
   RankedStation,
   TrainAlertPayload,
@@ -61,10 +66,14 @@ const MapPanel = lazy(async () => {
   return { default: module.MapPanel };
 });
 
-function createParticipant(name = ''): Participant {
+function createParticipant(
+  name = '',
+  usedColors: readonly ParticipantColor[] = [],
+): Participant {
   return {
     id: createId('person'),
     name,
+    color: pickParticipantColor(usedColors),
     sameAsStart: true,
     start: emptyLocation(),
     end: emptyLocation(),
@@ -110,7 +119,9 @@ function loadSavedState(): {
       : [];
 
     return {
-      participants: participants.length ? participants : [createParticipant()],
+      participants: participants.length
+        ? normalizeParticipantColors(participants)
+        : [createParticipant()],
       mode: parsed.mode === 'distance' ? 'distance' : 'rail',
       railObjective:
         parsed.railObjective === 'average' || parsed.railObjective === 'evenness'
@@ -136,6 +147,8 @@ function buildEndpointPoints(participants: Participant[]): EndpointPoint[] {
         id: `${participant.id}-start`,
         participantId: participant.id,
         participantName,
+        participantColor: participant.color,
+        markerLabel: String(index + 1),
         kind: 'start',
         label: participant.start.label || participant.start.query,
         lat: participant.start.lat,
@@ -149,6 +162,8 @@ function buildEndpointPoints(participants: Participant[]): EndpointPoint[] {
         id: `${participant.id}-end`,
         participantId: participant.id,
         participantName,
+        participantColor: participant.color,
+        markerLabel: String(index + 1),
         kind: 'end',
         label: end.label || end.query,
         lat: end.lat,
@@ -256,7 +271,7 @@ export default function App() {
 
   const applyRemotePlan = useCallback((plan: SharedPlan) => {
     planRevisionRef.current += 1;
-    setParticipants(plan.participants);
+    setParticipants(normalizeParticipantColors(plan.participants));
     setMode(plan.mode);
     setRailObjective(plan.railObjective);
     setResult(null);
@@ -372,6 +387,15 @@ export default function App() {
   function updateParticipant(next: Participant) {
     if (isCalculating) return;
     if (!canEditParticipant(next.id)) return;
+    const previous = participants.find((participant) => participant.id === next.id);
+    const colorOnlyChange = Boolean(
+      previous
+      && previous.color !== next.color
+      && previous.name === next.name
+      && previous.sameAsStart === next.sameAsStart
+      && previous.start === next.start
+      && previous.end === next.end,
+    );
     planRevisionRef.current += 1;
     setParticipants((current) =>
       current.map((participant) =>
@@ -379,7 +403,7 @@ export default function App() {
       ),
     );
     shared.scheduleParticipant(next);
-    setResult(null);
+    if (!colorOnlyChange) setResult(null);
     setGlobalError('');
   }
 
@@ -387,7 +411,10 @@ export default function App() {
     if (isCalculating) return;
     if (!canManagePlan) return;
     planRevisionRef.current += 1;
-    const next = createParticipant();
+    const next = createParticipant(
+      '',
+      participants.map((participant) => participant.color),
+    );
     setParticipants((current) => [...current, next]);
     void shared.addParticipant(next).catch(() => undefined);
     setResult(null);
@@ -403,6 +430,7 @@ export default function App() {
       {
         id: createId('person'),
         name: 'Aisha',
+        color: 'green' as const,
         sameAsStart: true,
         start: emptyLocation('Aljunied MRT'),
         end: emptyLocation('Aljunied MRT'),
@@ -410,6 +438,7 @@ export default function App() {
       {
         id: createId('person'),
         name: 'Ben',
+        color: 'blue' as const,
         sameAsStart: true,
         start: emptyLocation('Eunos MRT'),
         end: emptyLocation('Eunos MRT'),
@@ -459,6 +488,20 @@ export default function App() {
       };
     });
   }, []);
+
+  const selectMeetingStationFromMap = useCallback((station: RankedStation) => {
+    selectMeetingStation(station);
+    window.requestAnimationFrame(() => {
+      const heading = document.getElementById('meeting-result-title');
+      document.getElementById('meeting-result')?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'auto'
+          : 'smooth',
+        block: 'start',
+      });
+      heading?.focus({ preventScroll: true });
+    });
+  }, [selectMeetingStation]);
   async function ensureStations(): Promise<MrtStation[]> {
     if (stations.length) return stations;
     const response = await fetchMrtStations();
@@ -907,7 +950,7 @@ export default function App() {
               <MapPanel
                 points={mapPoints}
                 result={result}
-                onSelectStation={selectMeetingStation}
+                onSelectStation={selectMeetingStationFromMap}
               />
             </Suspense>
           ) : null}

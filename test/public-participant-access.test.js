@@ -107,6 +107,10 @@ test('five-character passwords fail while six-character owner and participant pa
   assert.equal(joined.status, 201);
   assert.equal(joined.body.plan.schemaVersion, 3);
   assert.equal(joined.body.plan.currentMember.username, 'Friend');
+  const joinedParticipant = joined.body.plan.participants.find(
+    (participant) => participant.id === joined.body.plan.currentMember.participantId,
+  );
+  assert.match(joinedParticipant.color, /^(coral|orange|amber|green|teal|cyan|blue|indigo|purple|pink)$/);
   assert.equal(JSON.stringify(joined.body).includes('abcdef'), false);
 });
 
