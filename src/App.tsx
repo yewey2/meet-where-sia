@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { ParticipantCard } from './components/ParticipantCard';
-import { MapPanel } from './components/MapPanel';
 import { ResultPanel } from './components/ResultPanel';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SharedPlanPanel } from './components/SharedPlanPanel';
@@ -48,6 +55,11 @@ import type {
 
 const STORAGE_KEY = 'meetmiddle-sg-v1';
 // Keep the legacy key so existing users retain their saved plans after rename.
+
+const MapPanel = lazy(async () => {
+  const module = await import('./components/MapPanel');
+  return { default: module.MapPanel };
+});
 
 function createParticipant(name = ''): Participant {
   return {
@@ -882,11 +894,22 @@ export default function App() {
             onSelectStation={selectMeetingStation}
           />
           {mapPoints.length > 0 || result ? (
-            <MapPanel
-              points={mapPoints}
-              result={result}
-              onSelectStation={selectMeetingStation}
-            />
+            <Suspense
+              fallback={(
+                <div className="map-wrap">
+                  <div className="map-loading" role="status">
+                    <span className="input-spinner" aria-hidden="true" />
+                    Loading map…
+                  </div>
+                </div>
+              )}
+            >
+              <MapPanel
+                points={mapPoints}
+                result={result}
+                onSelectStation={selectMeetingStation}
+              />
+            </Suspense>
           ) : null}
         </aside>
       </main>
