@@ -2405,6 +2405,72 @@ body {
   font-size: clamp(28px, 3vw, 38px);
 }
 
+.rail-detour-warning {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  max-width: 620px;
+  margin-top: 9px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  color: var(--orange);
+  background: var(--orange-soft);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.rail-detour-help {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.rail-detour-trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: var(--orange);
+  background: transparent;
+  cursor: help;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.rail-detour-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: min(310px, calc(100vw - 64px));
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--panel);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.rail-detour-trigger:hover + .rail-detour-tooltip,
+.rail-detour-trigger:focus-visible + .rail-detour-tooltip,
+.rail-detour-help.is-open .rail-detour-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .rail-line-chips {
   display: flex;
   flex-wrap: wrap;
@@ -2538,10 +2604,6 @@ body {
   background: var(--orange-soft);
   font-size: 12px;
   line-height: 1.45;
-}
-
-.result-tip strong {
-  color: var(--ink);
 }
 
 .result-actions {

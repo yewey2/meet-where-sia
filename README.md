@@ -40,7 +40,7 @@ Every endpoint is attached to its nearest connected station. The planner runs sh
 
 By default, candidate stations are ranked by the lowest group-average journey (and therefore the lowest group total), then the shortest longest journey, then proximity to the group's geometric median. Fairness-first and journey-evenness objectives are also available.
 
-Rail topology can occasionally make a distant interchange look fastest for nearby places on different lines. The planner keeps that rail-only result, but uses the locations' geometric median and geographic radius to flag stations that sit well outside the group's area. In those cases it suggests checking a bus or another direct public-transport route rather than claiming to model a bus journey it has not calculated.
+Rail topology can occasionally make a distant interchange look fastest for nearby places on different lines. The planner keeps that rail-only result, but uses the locations' geometric median, geographic radius, and buffered endpoint bounds to flag stations that sit well outside the group's area. In those cases an under-title notice explains why a bus or another direct public-transport route may be more practical, rather than claiming to model a bus journey it has not calculated.
 
 The graph is represented in [`src/lib/railGraph.ts`](src/lib/railGraph.ts). Station names and coordinates come from official runtime data where available, while journey timings are explicit planning estimates—not official timetables. They do not model exact walking routes, fares, accessibility, crowding, or time-of-day service patterns.
 

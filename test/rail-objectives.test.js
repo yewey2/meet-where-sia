@@ -8,7 +8,7 @@ async function loadRailGraph() {
   const compiled = await transformWithOxc(source, 'railGraph.ts');
   const centroidStub = `data:text/javascript,${encodeURIComponent(`
     export const distanceMetrics = () => ({});
-    export const haversineKm = () => 0;
+    export const haversineKm = (a, b) => Math.hypot(a.lat - b.lat, a.lng - b.lng);
   `)}`;
   const metricsStub = `data:text/javascript,${encodeURIComponent(`
     export const participantTravelTimeMetrics = () => ({});
@@ -59,11 +59,22 @@ test('rail objectives use centroid proximity and station name as stable tie-brea
   }
 });
 
-test('rail locality warning requires a large absolute and relative detour', async () => {
+test('rail locality warning requires a large radial or buffered-bounds detour', async () => {
   const { hasSignificantGeographicDetour } = await loadRailGraph();
 
   assert.equal(hasSignificantGeographicDetour(6, 2), true);
   assert.equal(hasSignificantGeographicDetour(3, 2), false);
   assert.equal(hasSignificantGeographicDetour(13, 10), false);
+  assert.equal(hasSignificantGeographicDetour(3, 2, 2.1), true);
+  assert.equal(hasSignificantGeographicDetour(3, 2, 1.9), false);
   assert.equal(hasSignificantGeographicDetour(Number.NaN, 2), false);
+});
+
+test('distance outside endpoint bounds is zero inside and measured from the nearest edge', async () => {
+  const { distanceOutsideEndpointBoundsKm } = await loadRailGraph();
+  const points = [{ lat: 0, lng: 0 }, { lat: 2, lng: 2 }];
+
+  assert.equal(distanceOutsideEndpointBoundsKm({ lat: 1, lng: 1 }, points), 0);
+  assert.equal(distanceOutsideEndpointBoundsKm({ lat: 3, lng: 1 }, points), 1);
+  assert.equal(distanceOutsideEndpointBoundsKm({ lat: 3, lng: 3 }, points), Math.sqrt(2));
 });

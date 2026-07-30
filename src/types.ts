@@ -74,6 +74,7 @@ export interface RankedStation extends MrtStation {
   totalTransfers: number;
   groupRadiusKm: number;
   geographicDetourKm: number;
+  boundsDetourKm: number;
   hasGeographicDetour: boolean;
   journeys: RailJourneyEstimate[];
   lineCodes: string[];

@@ -48,6 +48,7 @@ export const RAIL_MODEL = {
 
 export const RAIL_LOCALITY_MODEL = {
   minOutsideRadiusKm: 2,
+  minOutsideBoundsKm: 2,
   minCenterDistanceRatio: 1.5,
 } as const;
 
@@ -432,6 +433,7 @@ export function rankStationsByTravelTime(
       const participantTimeMetrics = participantTravelTimeMetrics(journeys);
       const centroidKm = haversineKm(center, station);
       const geographicDetourKm = Math.max(0, centroidKm - groupRadiusKm);
+      const boundsDetourKm = distanceOutsideEndpointBoundsKm(station, points);
       return {
         ...station,
         ...distanceMetrics(station, points),
@@ -440,9 +442,11 @@ export function rankStationsByTravelTime(
         totalTransfers: journeys.reduce((sum, journey) => sum + journey.transfers, 0),
         groupRadiusKm,
         geographicDetourKm,
+        boundsDetourKm,
         hasGeographicDetour: hasSignificantGeographicDetour(
           centroidKm,
           groupRadiusKm,
+          boundsDetourKm,
         ),
         journeys,
         lineCodes,
@@ -452,24 +456,44 @@ export function rankStationsByTravelTime(
     .sort((a, b) => compareRankedStations(a, b, objective));
 }
 
+export function distanceOutsideEndpointBoundsKm(
+  candidate: Coordinate,
+  points: Coordinate[],
+): number {
+  if (points.length === 0) return 0;
+  const latitudes = points.map((point) => point.lat);
+  const longitudes = points.map((point) => point.lng);
+  const nearestPointInBounds = {
+    lat: Math.min(Math.max(candidate.lat, Math.min(...latitudes)), Math.max(...latitudes)),
+    lng: Math.min(Math.max(candidate.lng, Math.min(...longitudes)), Math.max(...longitudes)),
+  };
+  return haversineKm(candidate, nearestPointInBounds);
+}
+
 export function hasSignificantGeographicDetour(
   stationDistanceFromCenterKm: number,
   groupRadiusKm: number,
+  distanceOutsideBoundsKm = 0,
 ): boolean {
   if (
     !Number.isFinite(stationDistanceFromCenterKm) ||
     !Number.isFinite(groupRadiusKm) ||
+    !Number.isFinite(distanceOutsideBoundsKm) ||
     stationDistanceFromCenterKm < 0 ||
-    groupRadiusKm < 0
+    groupRadiusKm < 0 ||
+    distanceOutsideBoundsKm < 0
   ) {
     return false;
   }
 
   const outsideRadiusKm = stationDistanceFromCenterKm - groupRadiusKm;
   return (
-    outsideRadiusKm > RAIL_LOCALITY_MODEL.minOutsideRadiusKm &&
-    stationDistanceFromCenterKm >
-      groupRadiusKm * RAIL_LOCALITY_MODEL.minCenterDistanceRatio
+    distanceOutsideBoundsKm > RAIL_LOCALITY_MODEL.minOutsideBoundsKm ||
+    (
+      outsideRadiusKm > RAIL_LOCALITY_MODEL.minOutsideRadiusKm &&
+      stationDistanceFromCenterKm >
+        groupRadiusKm * RAIL_LOCALITY_MODEL.minCenterDistanceRatio
+    )
   );
 }
 

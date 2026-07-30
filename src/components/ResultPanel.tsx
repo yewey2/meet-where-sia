@@ -263,6 +263,7 @@ export function ResultPanel({
   onSelectStation,
 }: ResultPanelProps) {
   const [shareStatus, setShareStatus] = useState('');
+  const [detourTooltipOpen, setDetourTooltipOpen] = useState(false);
   const resultHeadingRef = useRef<HTMLHeadingElement>(null);
   const shouldFocusHeadingRef = useRef(false);
   const selectedStationId =
@@ -276,6 +277,7 @@ export function ResultPanel({
 
   useEffect(() => {
     setShareStatus('');
+    setDetourTooltipOpen(false);
   }, [result?.lat, result?.lng]);
 
   if (isCalculating) {
@@ -390,16 +392,47 @@ export function ResultPanel({
             {result.title}
           </h2>
           {result.mode === 'rail' ? (
-            <div
-              className="rail-line-chips"
-              aria-label={`Served by ${formatRailLines(result.station.lineCodes)}`}
-            >
-              {result.station.lineCodes.map((code) => (
-                <span className={`rail-line-chip line-${code.toLowerCase()}`} key={code}>
-                  {code}
-                </span>
-              ))}
-            </div>
+            <>
+              {result.station.hasGeographicDetour ? (
+                <div className="rail-detour-warning" role="note">
+                  <span>Recommended by MRT/LRT time, but another route may be better.</span>
+                  <span className={`rail-detour-help ${detourTooltipOpen ? 'is-open' : ''}`}>
+                    <button
+                      type="button"
+                      className="rail-detour-trigger"
+                      aria-label="Why another route may be better"
+                      aria-describedby="rail-detour-explanation"
+                      aria-controls="rail-detour-explanation"
+                      aria-expanded={detourTooltipOpen}
+                      onClick={() => setDetourTooltipOpen((open) => !open)}
+                      onBlur={() => setDetourTooltipOpen(false)}
+                    >
+                      ?
+                    </button>
+                    <span
+                      id="rail-detour-explanation"
+                      className="rail-detour-tooltip"
+                      role="tooltip"
+                    >
+                      The MRT/LRT estimate is lowest here, but this station sits
+                      well beyond the area between the locations you entered. Rail
+                      lines can pull the result toward a distant interchange, while
+                      a bus or a more central meeting point may be more practical.
+                    </span>
+                  </span>
+                </div>
+              ) : null}
+              <div
+                className="rail-line-chips"
+                aria-label={`Served by ${formatRailLines(result.station.lineCodes)}`}
+              >
+                {result.station.lineCodes.map((code) => (
+                  <span className={`rail-line-chip line-${code.toLowerCase()}`} key={code}>
+                    {code}
+                  </span>
+                ))}
+              </div>
+            </>
           ) : (
             <p className="result-address">
               <MapPinIcon />
@@ -516,18 +549,7 @@ export function ResultPanel({
       ) : null}
 
       {result.mode === 'rail' ? (
-        <p className="result-tip">
-          {result.station.hasGeographicDetour ? (
-            <>
-              <strong>Rail may be a detour.</strong>{' '}
-              This station sits well outside the area covered by your locations.
-              Try <strong>By distance</strong> for a nearby centre, then check
-              whether a bus or another direct public-transport route is faster.
-            </>
-          ) : (
-            'Confirm the station exit or venue with your group.'
-          )}
-        </p>
+        <p className="result-tip">Confirm the station exit or venue with your group.</p>
       ) : null}
 
       <div className="result-actions">
