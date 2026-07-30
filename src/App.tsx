@@ -153,6 +153,7 @@ function buildEndpointPoints(participants: Participant[]): EndpointPoint[] {
         label: participant.start.label || participant.start.query,
         lat: participant.start.lat,
         lng: participant.start.lng,
+        isRailStation: participant.start.placeId?.startsWith('station:') === true,
       });
     }
 
@@ -168,6 +169,7 @@ function buildEndpointPoints(participants: Participant[]): EndpointPoint[] {
         label: end.label || end.query,
         lat: end.lat,
         lng: end.lng,
+        isRailStation: end.placeId?.startsWith('station:') === true,
       });
     }
 

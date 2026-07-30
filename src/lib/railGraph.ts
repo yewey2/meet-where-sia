@@ -3,6 +3,7 @@ import type {
   EndpointPoint,
   MrtStation,
   RailJourneyEstimate,
+  RailRouteStep,
   RankedStation,
   RailObjective,
 } from '../types';
@@ -27,6 +28,16 @@ interface GraphState {
   rideMinutes: number;
   transferMinutes: number;
   transfers: number;
+  path: GraphPathSegment[];
+}
+
+export interface GraphPathSegment {
+  kind: 'ride' | 'transfer';
+  minutes: number;
+  fromStationId: string;
+  fromLineCode: string;
+  toStationId: string;
+  toLineCode: string;
 }
 
 interface RailGraph {
@@ -205,6 +216,14 @@ function nodeKey(stationId: string, lineCode: string): string {
   return `${stationId}|${lineCode}`;
 }
 
+function parseNodeKey(key: string): { stationId: string; lineCode: string } {
+  const separator = key.lastIndexOf('|');
+  return {
+    stationId: key.slice(0, separator),
+    lineCode: key.slice(separator + 1),
+  };
+}
+
 function addEdge(
   adjacency: Map<string, GraphEdge[]>,
   from: string,
@@ -306,7 +325,13 @@ function shortestPaths(graph: RailGraph, originStationId: string): Map<string, G
 
   for (const lineCode of originLines) {
     const key = nodeKey(originStationId, lineCode);
-    distances.set(key, { minutes: 0, rideMinutes: 0, transferMinutes: 0, transfers: 0 });
+    distances.set(key, {
+      minutes: 0,
+      rideMinutes: 0,
+      transferMinutes: 0,
+      transfers: 0,
+      path: [],
+    });
     pending.add(key);
   }
 
@@ -324,12 +349,25 @@ function shortestPaths(graph: RailGraph, originStationId: string): Map<string, G
     pending.delete(currentKey);
 
     for (const edge of graph.adjacency.get(currentKey) || []) {
+      const fromNode = parseNodeKey(currentKey);
+      const toNode = parseNodeKey(edge.to);
       const next: GraphState = {
         minutes: currentState.minutes + edge.minutes,
         rideMinutes: currentState.rideMinutes + (edge.kind === 'ride' ? edge.minutes : 0),
         transferMinutes:
           currentState.transferMinutes + (edge.kind === 'transfer' ? edge.minutes : 0),
         transfers: currentState.transfers + (edge.kind === 'transfer' ? 1 : 0),
+        path: [
+          ...currentState.path,
+          {
+            kind: edge.kind,
+            minutes: edge.minutes,
+            fromStationId: fromNode.stationId,
+            fromLineCode: fromNode.lineCode,
+            toStationId: toNode.stationId,
+            toLineCode: toNode.lineCode,
+          },
+        ],
       };
       if (isBetter(next, distances.get(edge.to))) {
         distances.set(edge.to, next);
@@ -358,6 +396,74 @@ function bestStateAtStation(
     .map((lineCode) => paths.get(nodeKey(stationId, lineCode)))
     .filter((state): state is GraphState => Boolean(state))
     .sort((a, b) => a.minutes - b.minutes || a.transfers - b.transfers)[0];
+}
+
+export function summarizeRailPath(
+  path: GraphPathSegment[],
+  stations: MrtStation[],
+): RailRouteStep[] {
+  const stationNames = new Map(stations.map((station) => [station.id, station.name]));
+  const nameOf = (stationId: string) => stationNames.get(stationId) || stationId;
+  const steps: RailRouteStep[] = [];
+
+  for (const segment of path) {
+    if (segment.kind === 'transfer') {
+      steps.push({
+        kind: 'transfer',
+        stationId: segment.fromStationId,
+        stationName: nameOf(segment.fromStationId),
+        fromLineCode: segment.fromLineCode,
+        toLineCode: segment.toLineCode,
+        minutes: segment.minutes,
+      });
+      continue;
+    }
+
+    const previous = steps[steps.length - 1];
+    if (
+      previous?.kind === 'ride' &&
+      previous.lineCode === segment.fromLineCode &&
+      previous.toStationId === segment.fromStationId
+    ) {
+      previous.toStationId = segment.toStationId;
+      previous.toStationName = nameOf(segment.toStationId);
+      previous.stops += 1;
+      previous.minutes += segment.minutes;
+      continue;
+    }
+
+    steps.push({
+      kind: 'ride',
+      lineCode: segment.fromLineCode,
+      fromStationId: segment.fromStationId,
+      fromStationName: nameOf(segment.fromStationId),
+      toStationId: segment.toStationId,
+      toStationName: nameOf(segment.toStationId),
+      stops: 1,
+      minutes: segment.minutes,
+    });
+  }
+
+  return steps;
+}
+
+export function reverseRailRouteSteps(steps: RailRouteStep[]): RailRouteStep[] {
+  return [...steps].reverse().map((step): RailRouteStep => {
+    if (step.kind === 'transfer') {
+      return {
+        ...step,
+        fromLineCode: step.toLineCode,
+        toLineCode: step.fromLineCode,
+      };
+    }
+    return {
+      ...step,
+      fromStationId: step.toStationId,
+      fromStationName: step.toStationName,
+      toStationId: step.fromStationId,
+      toStationName: step.fromStationName,
+    };
+  });
 }
 
 export function findLocalStation(
@@ -411,8 +517,11 @@ export function rankStationsByTravelTime(
       for (const endpoint of endpointPaths) {
         const path = bestStateAtStation(station.id, lineCodes, endpoint.paths);
         if (!path) return undefined;
+        const initialWaitMinutes = path.rideMinutes > 0
+          ? RAIL_MODEL.initialWaitMinutes
+          : 0;
         const totalMinutes =
-          endpoint.accessWalkMinutes + RAIL_MODEL.initialWaitMinutes + path.minutes;
+          endpoint.accessWalkMinutes + initialWaitMinutes + path.minutes;
         journeys.push({
           endpointId: endpoint.point.id,
           endpointLabel: endpoint.point.label,
@@ -421,12 +530,15 @@ export function rankStationsByTravelTime(
           participantName: endpoint.point.participantName,
           originStationId: endpoint.origin.id,
           originStationName: endpoint.origin.name,
+          endpointIsRailStation: endpoint.point.isRailStation,
+          straightLineDistanceKm: haversineKm(endpoint.point, station),
           accessWalkMinutes: endpoint.accessWalkMinutes,
-          initialWaitMinutes: RAIL_MODEL.initialWaitMinutes,
+          initialWaitMinutes,
           rideMinutes: path.rideMinutes,
           transferMinutes: path.transferMinutes,
           transfers: path.transfers,
           totalMinutes,
+          routeSteps: summarizeRailPath(path.path, graph.stations),
         });
       }
 

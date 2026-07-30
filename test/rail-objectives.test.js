@@ -78,3 +78,79 @@ test('distance outside endpoint bounds is zero inside and measured from the near
   assert.equal(distanceOutsideEndpointBoundsKm({ lat: 3, lng: 1 }, points), 1);
   assert.equal(distanceOutsideEndpointBoundsKm({ lat: 3, lng: 3 }, points), Math.sqrt(2));
 });
+
+test('rail paths collapse consecutive stops into rides separated by named transfers', async () => {
+  const { summarizeRailPath } = await loadRailGraph();
+  const stations = [
+    { id: 'a', name: 'Alpha' },
+    { id: 'b', name: 'Bravo' },
+    { id: 'c', name: 'Central' },
+    { id: 'd', name: 'Delta' },
+  ];
+  const path = [
+    { kind: 'ride', minutes: 2, fromStationId: 'a', fromLineCode: 'DT', toStationId: 'b', toLineCode: 'DT' },
+    { kind: 'ride', minutes: 3, fromStationId: 'b', fromLineCode: 'DT', toStationId: 'c', toLineCode: 'DT' },
+    { kind: 'transfer', minutes: 6.5, fromStationId: 'c', fromLineCode: 'DT', toStationId: 'c', toLineCode: 'CC' },
+    { kind: 'ride', minutes: 4, fromStationId: 'c', fromLineCode: 'CC', toStationId: 'd', toLineCode: 'CC' },
+  ];
+
+  assert.deepEqual(summarizeRailPath(path, stations), [
+    {
+      kind: 'ride', lineCode: 'DT',
+      fromStationId: 'a', fromStationName: 'Alpha',
+      toStationId: 'c', toStationName: 'Central',
+      stops: 2, minutes: 5,
+    },
+    {
+      kind: 'transfer', stationId: 'c', stationName: 'Central',
+      fromLineCode: 'DT', toLineCode: 'CC', minutes: 6.5,
+    },
+    {
+      kind: 'ride', lineCode: 'CC',
+      fromStationId: 'c', fromStationName: 'Central',
+      toStationId: 'd', toStationName: 'Delta',
+      stops: 1, minutes: 4,
+    },
+  ]);
+});
+
+test('after-meetup rail instructions reverse rides and transfer directions', async () => {
+  const { reverseRailRouteSteps } = await loadRailGraph();
+  const steps = [
+    {
+      kind: 'ride', lineCode: 'DT',
+      fromStationId: 'a', fromStationName: 'Alpha',
+      toStationId: 'c', toStationName: 'Central',
+      stops: 2, minutes: 5,
+    },
+    {
+      kind: 'transfer', stationId: 'c', stationName: 'Central',
+      fromLineCode: 'DT', toLineCode: 'CC', minutes: 6.5,
+    },
+    {
+      kind: 'ride', lineCode: 'CC',
+      fromStationId: 'c', fromStationName: 'Central',
+      toStationId: 'd', toStationName: 'Delta',
+      stops: 1, minutes: 4,
+    },
+  ];
+
+  assert.deepEqual(reverseRailRouteSteps(steps), [
+    {
+      kind: 'ride', lineCode: 'CC',
+      fromStationId: 'd', fromStationName: 'Delta',
+      toStationId: 'c', toStationName: 'Central',
+      stops: 1, minutes: 4,
+    },
+    {
+      kind: 'transfer', stationId: 'c', stationName: 'Central',
+      fromLineCode: 'CC', toLineCode: 'DT', minutes: 6.5,
+    },
+    {
+      kind: 'ride', lineCode: 'DT',
+      fromStationId: 'c', fromStationName: 'Central',
+      toStationId: 'a', toStationName: 'Alpha',
+      stops: 2, minutes: 5,
+    },
+  ]);
+});

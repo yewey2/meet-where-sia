@@ -17,6 +17,7 @@ Meet Where Sia is a Singapore-focused meetup planner that finds a fair, practica
 ## Features
 
 - Estimated travel across the connected Singapore MRT/LRT passenger network
+- Line-by-line MRT/LRT instructions with named interchange steps for every leg
 - Pure-distance mode using a geometric median rather than a simple midpoint
 - Interactive map with participant endpoints, the selected meeting point, and close alternatives
 - Google place search, geocoding, and map tiles when an optional browser key is configured
@@ -47,6 +48,8 @@ The graph is represented in [`src/lib/railGraph.ts`](src/lib/railGraph.ts). Stat
 ### Pure distance
 
 Pure-distance mode uses [Weiszfeld's algorithm](https://en.wikipedia.org/wiki/Geometric_median) on a Singapore-scale local tangent plane to approximate the geometric median. Final distances use the Haversine formula.
+
+Individual distance-mode legs are straight-line estimates. Detailed routing for distance mode and non-MRT/LRT endpoints is not currently calculated by the local planner.
 
 Each participant contributes a start and end observation. When **End at the same place** is selected, the start is counted again as the end so every participant keeps equal weight.
 

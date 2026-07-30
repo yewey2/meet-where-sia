@@ -47,6 +47,7 @@ export interface EndpointPoint {
   label: string;
   lat: number;
   lng: number;
+  isRailStation: boolean;
 }
 
 export interface Coordinate {
@@ -88,13 +89,38 @@ export interface RailJourneyEstimate {
   participantName: string;
   originStationId: string;
   originStationName: string;
+  endpointIsRailStation: boolean;
+  straightLineDistanceKm: number;
   accessWalkMinutes: number;
   initialWaitMinutes: number;
   rideMinutes: number;
   transferMinutes: number;
   transfers: number;
   totalMinutes: number;
+  routeSteps: RailRouteStep[];
 }
+
+export interface RailRideStep {
+  kind: 'ride';
+  lineCode: string;
+  fromStationId: string;
+  fromStationName: string;
+  toStationId: string;
+  toStationName: string;
+  stops: number;
+  minutes: number;
+}
+
+export interface RailTransferStep {
+  kind: 'transfer';
+  stationId: string;
+  stationName: string;
+  fromLineCode: string;
+  toLineCode: string;
+  minutes: number;
+}
+
+export type RailRouteStep = RailRideStep | RailTransferStep;
 
 export interface DistanceResult extends Coordinate {
   mode: 'distance';

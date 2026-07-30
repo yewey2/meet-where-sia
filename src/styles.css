@@ -3553,6 +3553,65 @@ html {
   margin-top: 7px;
 }
 
+.rail-route-steps {
+  display: grid;
+  gap: 7px;
+  margin: 9px 0 7px;
+  padding: 0;
+  list-style: none;
+}
+
+.rail-route-step {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--muted);
+}
+
+.rail-route-step > span:last-child {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rail-route-step strong {
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.rail-route-step small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.rail-route-line-code,
+.rail-route-transfer-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  min-height: 24px;
+  border-radius: 7px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.rail-route-transfer-mark {
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  font-size: 15px;
+}
+
+.rail-route-estimate {
+  margin: 7px 0 4px;
+  color: var(--soft-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
 
 .journey-route {
   margin: 9px 0 7px;
@@ -3561,16 +3620,15 @@ html {
   line-height: 1.6;
 }
 
+.journey-route-unsupported {
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
 .journey-route strong {
   color: var(--ink);
   font-weight: 750;
-}
-
-.journey-route-separator {
-  display: inline-block;
-  margin-inline: 6px;
-  color: var(--accent-dark);
-  font-weight: 800;
 }
 
 .journey-directions-link {
