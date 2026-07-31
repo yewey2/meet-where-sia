@@ -3829,6 +3829,237 @@ button.alternative-row:focus-visible {
   display: none;
 }
 
+.rail-objective-guidance {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 9px;
+  padding: 11px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 11px 11px 0;
+  background: var(--surface);
+}
+
+.rail-objective-guidance > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.rail-objective-guidance strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.rail-objective-guidance p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.rail-objective-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 9px;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rail-objective-help:hover {
+  filter: brightness(1.05);
+}
+
+.rail-objective-help > span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-family: Georgia, serif;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.objective-help-dialog {
+  width: min(560px, calc(100% - 28px));
+  max-height: min(88dvh, 760px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.objective-help-dialog::backdrop {
+  background: rgb(4 9 8 / 68%);
+  backdrop-filter: blur(6px);
+}
+
+.objective-help-content {
+  position: relative;
+  padding: 26px;
+}
+
+.objective-help-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 24px;
+}
+
+.objective-help-close:hover {
+  color: var(--ink);
+  background: var(--surface-alt);
+}
+
+.objective-help-heading {
+  padding-right: 36px;
+}
+
+.objective-help-heading > span {
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.objective-help-heading h2 {
+  margin: 6px 0 0;
+  font-size: 24px;
+  letter-spacing: -0.035em;
+}
+
+.objective-help-heading p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.objective-help-list {
+  display: grid;
+  gap: 9px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.objective-help-list li {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.objective-help-list li.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.objective-help-option-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.objective-help-option-heading strong {
+  font-size: 14px;
+}
+
+.objective-help-option-heading span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: var(--accent-on);
+  background: var(--accent-fill);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.objective-help-list p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.objective-help-list small {
+  display: block;
+  margin-top: 6px;
+  color: var(--soft-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.objective-help-list small strong {
+  color: var(--muted);
+}
+
+.objective-help-list li > button {
+  min-height: 44px;
+  margin-top: 11px;
+  padding: 7px 11px;
+  border: 1px solid var(--control-line);
+  border-radius: 9px;
+  color: var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.objective-help-list li > button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+}
+
+.objective-help-list li > button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.objective-help-done {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 16px;
+  border: 0;
+  border-radius: 11px;
+  color: var(--accent-on);
+  background: var(--accent-fill);
+  cursor: pointer;
+  font-weight: 850;
+}
+
 .participant-color-picker {
   display: grid;
   justify-items: start;
@@ -4154,6 +4385,32 @@ button.alternative-row:focus-visible {
 
   .method-panel .mode-switch label small {
     font-size: 11px;
+  }
+
+  .rail-objective-guidance {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .rail-objective-help {
+    width: 100%;
+  }
+
+  .objective-help-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: calc(92dvh - env(safe-area-inset-top));
+    margin: auto 0 0;
+    border-width: 1px 0 0;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .objective-help-content {
+    padding: 23px 17px calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .objective-help-heading h2 {
+    font-size: 22px;
   }
 
   .participant-color-picker {

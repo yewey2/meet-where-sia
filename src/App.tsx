@@ -61,6 +61,42 @@ import type {
 const STORAGE_KEY = 'meetmiddle-sg-v1';
 // Keep the legacy key so existing users retain their saved plans after rename.
 
+const RAIL_OBJECTIVE_OPTIONS: Array<{
+  id: RailObjective;
+  label: string;
+  summary: string;
+  detail: string;
+  tradeoff: string;
+}> = [
+  {
+    id: 'average',
+    label: 'Quickest overall',
+    summary:
+      'Uses the least combined journey time for the group. One person may still have a longer outing.',
+    detail:
+      'Minimises everyone’s combined journey time across the trip to the meetup and onwards afterwards.',
+    tradeoff: 'The longest individual journey may still be noticeably longer.',
+  },
+  {
+    id: 'minimax',
+    label: 'Limit longest',
+    summary:
+      'Makes the longest individual outing as short as possible, even if everyone travels more overall.',
+    detail:
+      'Protects the person with the longest total journey by making that journey as short as possible.',
+    tradeoff: 'The group’s combined journey time may be higher.',
+  },
+  {
+    id: 'evenness',
+    label: 'Most even',
+    summary:
+      'Keeps everyone’s total outing times close together, even if the group travels more overall.',
+    detail:
+      'Minimises the spread between people’s complete journey times so the effort is more evenly shared.',
+    tradeoff: 'The fairest split may not be the quickest option for the group.',
+  },
+];
+
 const MapPanel = lazy(async () => {
   const module = await import('./components/MapPanel');
   return { default: module.MapPanel };
@@ -268,6 +304,7 @@ export default function App() {
   const [globalError, setGlobalError] = useState('');
   const autoScrolledResultRef = useRef<MeetingResult | null>(null);
   const planRevisionRef = useRef(0);
+  const objectiveHelpDialogRef = useRef<HTMLDialogElement>(null);
   const hasGoogleKey = Boolean(getGoogleMapsApiKey());
   const mapPoints = useMemo(() => buildEndpointPoints(participants), [participants]);
 
@@ -290,6 +327,9 @@ export default function App() {
   const currentSharedMember = shared.plan?.currentMember ?? null;
   const sharedOwner = currentSharedMember?.role === 'owner';
   const canManagePlan = !hasSharedLink || sharedOwner;
+  const selectedRailObjective =
+    RAIL_OBJECTIVE_OPTIONS.find((option) => option.id === railObjective)
+    ?? RAIL_OBJECTIVE_OPTIONS[0];
   const canEditParticipant = useCallback((participantId: string) => {
     if (!hasSharedLink) return true;
     if (!currentSharedMember) return false;
@@ -463,6 +503,14 @@ export default function App() {
     setMode('rail');
     setRailObjective('average');
     void shared.resetPlan(nextParticipants, 'rail', 'average').catch(() => undefined);
+    setResult(null);
+    setGlobalError('');
+  }
+
+  function chooseRailObjective(nextObjective: RailObjective) {
+    if (isCalculating || !canManagePlan || railObjective === nextObjective) return;
+    setRailObjective(nextObjective);
+    void shared.setRailObjective(nextObjective).catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
@@ -708,6 +756,65 @@ export default function App() {
 
       <div id="group-dialog-root" />
 
+      <dialog
+        ref={objectiveHelpDialogRef}
+        className="objective-help-dialog"
+        aria-labelledby="objective-help-title"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) event.currentTarget.close();
+        }}
+      >
+        <div className="objective-help-content">
+          <form method="dialog">
+            <button
+              type="submit"
+              className="objective-help-close"
+              aria-label="Close fairness goal comparison"
+            >
+              ×
+            </button>
+          </form>
+          <div className="objective-help-heading">
+            <span>Fairness goal</span>
+            <h2 id="objective-help-title">What’s the difference?</h2>
+            <p>
+              Every goal counts each person’s journey to the meetup and onwards.
+              The difference is what the station ranking prioritises.
+            </p>
+          </div>
+          <ul className="objective-help-list">
+            {RAIL_OBJECTIVE_OPTIONS.map((option) => {
+              const selected = option.id === railObjective;
+              return (
+                <li className={selected ? 'is-selected' : ''} key={option.id}>
+                  <div className="objective-help-option-heading">
+                    <strong>{option.label}</strong>
+                    {selected ? <span>Current</span> : null}
+                  </div>
+                  <p>{option.detail}</p>
+                  <small><strong>Trade-off:</strong> {option.tradeoff}</small>
+                  {canManagePlan ? (
+                    <button
+                      type="button"
+                      disabled={selected || isCalculating}
+                      onClick={() => {
+                        chooseRailObjective(option.id);
+                        objectiveHelpDialogRef.current?.close();
+                      }}
+                    >
+                      {selected ? 'Selected' : `Use ${option.label.toLowerCase()}`}
+                    </button>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+          <form method="dialog">
+            <button type="submit" className="objective-help-done">Done</button>
+          </form>
+        </div>
+      </dialog>
+
       <main className="planner-layout">
         <section className="planner-panel" aria-labelledby="planner-title">
           <div className="planner-intro">
@@ -803,57 +910,45 @@ export default function App() {
                 </label>
               </fieldset>
               {mode === 'rail' ? (
-                <fieldset className="rail-objective-picker">
-                  <legend>Prioritise</legend>
-                  <label>
-                    <input
-                      type="radio"
-                      name="rail-objective"
-                      value="average"
-                      checked={railObjective === 'average'}
-                      disabled={isCalculating || !canManagePlan}
-                      onChange={() => {
-                        setRailObjective('average');
-                        void shared.setRailObjective('average').catch(() => undefined);
-                        setResult(null);
-                        setGlobalError('');
-                      }}
-                    />
-                    <span><strong>Quickest overall</strong><small>Lowest combined journey time</small></span>
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="rail-objective"
-                      value="minimax"
-                      checked={railObjective === 'minimax'}
-                      disabled={isCalculating || !canManagePlan}
-                      onChange={() => {
-                        setRailObjective('minimax');
-                        void shared.setRailObjective('minimax').catch(() => undefined);
-                        setResult(null);
-                        setGlobalError('');
-                      }}
-                    />
-                    <span><strong>Limit longest</strong><small>Protects the person with the longest journey</small></span>
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="rail-objective"
-                      value="evenness"
-                      checked={railObjective === 'evenness'}
-                      disabled={isCalculating || !canManagePlan}
-                      onChange={() => {
-                        setRailObjective('evenness');
-                        void shared.setRailObjective('evenness').catch(() => undefined);
-                        setResult(null);
-                        setGlobalError('');
-                      }}
-                    />
-                    <span><strong>Most even</strong><small>Keeps everyone’s journey times closer</small></span>
-                  </label>
-                </fieldset>
+                <>
+                  <fieldset
+                    className="rail-objective-picker"
+                    aria-describedby="rail-objective-explanation"
+                  >
+                    <legend>Prioritise</legend>
+                    {RAIL_OBJECTIVE_OPTIONS.map((option) => (
+                      <label
+                        className={railObjective === option.id ? 'is-selected' : ''}
+                        key={option.id}
+                      >
+                        <input
+                          type="radio"
+                          name="rail-objective"
+                          value={option.id}
+                          checked={railObjective === option.id}
+                          disabled={isCalculating || !canManagePlan}
+                          onChange={() => chooseRailObjective(option.id)}
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  <div className="rail-objective-guidance">
+                    <div>
+                      <strong>{selectedRailObjective.label}</strong>
+                      <p id="rail-objective-explanation">{selectedRailObjective.summary}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="rail-objective-help"
+                      aria-haspopup="dialog"
+                      onClick={() => objectiveHelpDialogRef.current?.showModal()}
+                    >
+                      <span aria-hidden="true">i</span>
+                      Compare goals
+                    </button>
+                  </div>
+                </>
               ) : null}
               {mode === 'rail' && stationLoadError ? (
                 <p className="inline-warning">Rail data is unavailable right now. {stationLoadError}</p>
