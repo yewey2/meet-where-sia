@@ -258,7 +258,7 @@ test('sign-in attempts are rate limited', async () => {
   assert.equal(result.status, 429);
 });
 
-test('rail objective is created, mutated, reset, and exposed with an old-plan default', async () => {
+test('calculation objectives are created, mutated, reset, and exposed with old-plan defaults', async () => {
   const store = new MemoryPlanStore();
   const handler = createPlansHandler({ store });
   const created = await request(handler, {
@@ -266,10 +266,11 @@ test('rail objective is created, mutated, reset, and exposed with an old-plan de
     body: {
       action: 'create', title: 'Objective plan', displayName: 'Owner',
       email: 'objective@example.com', password: 'owner password 123',
-      participants: [participant], mode: 'rail', railObjective: 'average',
+      participants: [participant], mode: 'rail', railObjective: 'average', distanceObjective: 'centroid',
     },
   });
   assert.equal(created.body.plan.railObjective, 'average');
+  assert.equal(created.body.plan.distanceObjective, 'centroid');
   const planId = created.body.plan.id;
   const cookie = cookiePair(created.headers.get('set-cookie'));
 
@@ -291,15 +292,24 @@ test('rail objective is created, mutated, reset, and exposed with an old-plan de
   });
   assert.equal(weighted.body.plan.railObjective, 'weighted');
 
+  const distanceMedian = await request(handler, {
+    method: 'POST', cookie,
+    body: { action: 'mutate', planId, mutation: { type: 'setDistanceObjective', distanceObjective: 'median' } },
+  });
+  assert.equal(distanceMedian.body.plan.distanceObjective, 'median');
+
   const reset = await request(handler, {
     method: 'POST', cookie,
     body: { action: 'mutate', planId, mutation: { type: 'resetPlan', participants: [participant], mode: 'rail' } },
   });
   assert.equal(reset.body.plan.railObjective, 'average');
+  assert.equal(reset.body.plan.distanceObjective, 'centroid');
 
   const stored = await store.get(`mws:plan:${planId}`);
   delete stored.railObjective;
+  delete stored.distanceObjective;
   await store.set(`mws:plan:${planId}`, stored);
   const oldPlan = await request(handler, { url: `/api/plans?planId=${planId}` });
   assert.equal(oldPlan.body.plan.railObjective, 'average');
+  assert.equal(oldPlan.body.plan.distanceObjective, 'centroid');
 });

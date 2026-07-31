@@ -19,7 +19,7 @@ Meet Where Sia is a Singapore-focused meetup planner that finds a fair, practica
 - Estimated travel across the connected Singapore MRT/LRT passenger network
 - Four rail-ranking goals: quickest overall, weighted centre, manageable trips, and similar travel times
 - Line-by-line MRT/LRT instructions with named interchange steps for every leg
-- Pure-distance mode using a geometric median rather than a simple midpoint
+- Pure-distance mode with balanced-centre and shortest-overall goals
 - Interactive map with participant endpoints, the selected meeting point, and close alternatives
 - Google place search, geocoding, and map tiles when an optional browser key is configured
 - Official LTA station-exit data, supplemented for operational stations missing from that feed
@@ -62,13 +62,23 @@ The graph is represented in [`src/lib/railGraph.ts`](src/lib/railGraph.ts). Stat
 
 ### Pure distance
 
-Pure-distance mode uses the modified form of [Weiszfeld's algorithm](https://en.wikipedia.org/wiki/Geometric_median) on a Singapore-scale local tangent plane to approximate the geometric median. The modified coincident-point step prevents an iteration from stopping at an entered location unless that location really is optimal. Final distances use the Haversine formula.
+Pure-distance mode offers two goals under **Prioritise**:
 
-A geometric median minimises the sum of ordinary distances, so repeated
-locations can correctly anchor the result. For example, the geometric median of
-`1, 1, 2` on one axis is `1`. The arithmetic mean is `1.333`; that instead
-minimises the sum of squared distances. The rail planner's **Weighted centre**
-uses this squared-penalty idea with estimated journey times.
+| App label | Calculation | What it favours |
+| --- | --- | --- |
+| **Balanced centre** | Arithmetic centroid; lowest average squared straight-line distance | A geographically central result where longer distances have progressively more influence |
+| **Shortest overall** | Geometric median; lowest combined straight-line distance | The least total distance, even when someone far from the group travels much farther |
+
+Balanced centre is the default. Shortest overall uses the modified form of
+[Weiszfeld's algorithm](https://en.wikipedia.org/wiki/Geometric_median) on a
+Singapore-scale local tangent plane. Its coincident-point step prevents an
+iteration from stopping at an entered location unless that location really is
+optimal. Final distances for both goals use the Haversine formula.
+
+Repeated locations illustrate the difference: for `1, 1, 2` on one axis, the
+balanced arithmetic centre is `1.333`, while the shortest-overall geometric
+median is `1`. The app keeps the mathematical details and trade-offs in
+**Compare goals** while using plain-language labels in the main planner.
 
 Individual distance-mode legs are straight-line estimates. Detailed routing for distance mode and non-MRT/LRT endpoints is not currently calculated by the local planner.
 

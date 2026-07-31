@@ -1,4 +1,5 @@
 export type Mode = 'distance' | 'rail';
+export type DistanceObjective = 'centroid' | 'median';
 export type RailObjective = 'minimax' | 'average' | 'weighted' | 'evenness';
 export type ParticipantColor =
   | 'coral'
@@ -126,6 +127,7 @@ export type RailRouteStep = RailRideStep | RailTransferStep;
 
 export interface DistanceResult extends Coordinate {
   mode: 'distance';
+  objective: DistanceObjective;
   title: string;
   address: string;
   totalKm: number;

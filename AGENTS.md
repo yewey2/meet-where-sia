@@ -15,6 +15,7 @@ as Vercel functions or the local server.
 - `src/lib/googleMaps.ts`, `googleMapTiles.ts` - optional Google integration.
 - `src/lib/groupPlans.ts`, `useSharedPlan.ts` - shared-plan client and syncing.
 - `src/lib/participantColors.ts` - the ten participant map colours.
+- `src/lib/recommendationLabels.ts` - stable A-D labels for ranked stations.
 - `api/_plans-core.js` - shared-plan validation, auth, permissions, and storage.
 - `api/*.js` - Vercel API entry points.
 - `server/services.mjs` - shared station, nearby-place, and alert services.
@@ -46,9 +47,13 @@ Shared plans flow through `useSharedPlan.ts` -> `groupPlans.ts` -> `/api/plans`
   permanently identify or favour one participant as the furthest.
 - `evenness` minimises variance between participant full-outing times. Keep the
   statistical term in explanatory copy rather than the primary button label.
-- Pure-distance mode is an ordinary geometric median, not an arithmetic mean.
-  Repeated coordinates retain their full weight and may legitimately anchor the
+- Distance objectives are `centroid` and `median`, shown as Balanced centre and
+  Shortest overall. `centroid` is the default and uses the arithmetic centroid
+  to minimise squared distance. `median` minimises combined ordinary distance;
+  repeated coordinates retain their full weight and may legitimately anchor the
   answer. Preserve the modified Weiszfeld coincident-point handling.
+- Keep participant markers numeric and recommendation markers alphabetic (A-D)
+  across the map and comparison list.
 - Shared links expose participant names/locations; contributors may edit only
   their assigned participant. Keep auth and mutation checks server-side.
 - Participant colours must use the ten allowed IDs and remain compatible with

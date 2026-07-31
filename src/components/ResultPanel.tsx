@@ -13,6 +13,7 @@ import type {
 import { haversineKm } from '../lib/centroid';
 import { reverseRailRouteSteps } from '../lib/railGraph';
 import { meetingDirectionsUrl, meetingPointMapsUrl } from '../lib/directions';
+import { recommendationLabel } from '../lib/recommendationLabels';
 import {
   summarizeParticipantJourneys,
   type ParticipantJourneySummary,
@@ -420,6 +421,9 @@ export function ResultPanel({
           ) + 1,
         )
       : 0;
+  const selectedRailLabel = result.mode === 'rail'
+    ? recommendationLabel(selectedRailRank - 1)
+    : '';
   const mapsUrl = meetingPointMapsUrl(result);
   const websiteUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
   const isSharedPlan = new URLSearchParams(window.location.search).has('plan');
@@ -478,16 +482,18 @@ export function ResultPanel({
     >
       <p className="sr-only" role="status">
         {result.mode === 'rail'
-          ? `Selected rank ${selectedRailRank}: ${result.title}`
-          : `Fair meeting point: ${result.title}`}
+          ? `Selected recommendation ${selectedRailLabel}: ${result.title}`
+          : `${result.objective === 'centroid' ? 'Balanced centre' : 'Shortest-overall point'}: ${result.title}`}
       </p>
       <div className="result-kicker">
         {result.mode === 'rail' ? <RailIcon /> : <SparkIcon />}
         {result.mode === 'rail'
           ? selectedRailRank === 1
             ? `Best MRT/LRT station · ${objectiveLabel(result.objective)}`
-            : `Selected station · #${selectedRailRank} overall`
-          : 'Fairest by distance'}
+            : `Selected station · option ${selectedRailLabel}`
+          : result.objective === 'centroid'
+            ? 'Balanced centre'
+            : 'Shortest overall'}
       </div>
 
       <div className="result-title-row">
@@ -542,7 +548,11 @@ export function ResultPanel({
           ) : (
             <p className="result-address">
               <MapPinIcon />
-              <span>{result.address || 'Point with the lowest combined distance'}</span>
+              <span>{result.address || (
+                result.objective === 'centroid'
+                  ? 'Balanced centre of the locations entered'
+                  : 'Point with the lowest combined distance'
+              )}</span>
             </p>
           )}
         </div>
@@ -626,7 +636,7 @@ export function ResultPanel({
                     checked={selected}
                     onChange={() => onSelectStation(station)}
                   />
-                  <span className="alternative-rank">{index + 1}</span>
+                  <span className="alternative-rank">{recommendationLabel(index)}</span>
                   <span className="alternative-name">
                     <strong>{station.name}</strong>
                     <small>
@@ -717,7 +727,9 @@ export function ResultPanel({
         <strong>Why this spot?</strong>{' '}
         {result.mode === 'rail'
           ? `Compared ${result.candidateCount} connected stations for ${objectiveLabel(result.objective).toLowerCase()}, including each person’s journey to the meetup and onwards. Estimates cover walking, waits, trains and transfers, but not buses.`
-          : 'This point approximately minimises the combined straight-line distance to every location.'}
+          : result.objective === 'centroid'
+            ? 'This point keeps the group geographically central by giving longer distances more influence.'
+            : 'This point approximately minimises the combined straight-line distance to every location.'}
       </p>
     </section>
   );

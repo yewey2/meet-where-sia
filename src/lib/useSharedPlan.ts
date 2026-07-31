@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Mode, Participant, RailObjective } from '../types';
+import type { DistanceObjective, Mode, Participant, RailObjective } from '../types';
 import {
   claimSharedPlan,
   createClaimInvite,
@@ -25,6 +25,7 @@ interface UseSharedPlanOptions {
   participants: Participant[];
   mode: Mode;
   railObjective: RailObjective;
+  distanceObjective: DistanceObjective;
   onRemotePlan: (plan: SharedPlan) => void;
 }
 
@@ -32,7 +33,7 @@ function message(error: unknown) {
   return error instanceof Error ? error.message : 'The shared plan could not be updated.';
 }
 
-export function useSharedPlan({ participants, mode, railObjective, onRemotePlan }: UseSharedPlanOptions) {
+export function useSharedPlan({ participants, mode, railObjective, distanceObjective, onRemotePlan }: UseSharedPlanOptions) {
   const [requestedPlanId, setRequestedPlanId] = useState<string | null>(() => planIdFromLocation());
   const [claimToken, setClaimToken] = useState<string | null>(() => inviteTokenFromLocation());
   const [plan, setPlan] = useState<SharedPlan | null>(null);
@@ -174,7 +175,7 @@ export function useSharedPlan({ participants, mode, railObjective, onRemotePlan 
       setBusy(true);
       setError('');
       try {
-        const next = await createSharedPlan({ ...input, participants, mode, railObjective });
+        const next = await createSharedPlan({ ...input, participants, mode, railObjective, distanceObjective });
         setPlanInLocation(next.id);
         setRequestedPlanId(next.id);
         acceptPlan(next);
@@ -266,7 +267,8 @@ export function useSharedPlan({ participants, mode, railObjective, onRemotePlan 
     removeParticipant: (participantId: string) => runMutation({ type: 'removeParticipant', participantId }),
     setMode: (nextMode: Mode) => runMutation({ type: 'setMode', mode: nextMode }, false),
     setRailObjective: (nextObjective: RailObjective) => runMutation({ type: 'setRailObjective', railObjective: nextObjective }, false),
-    resetPlan: (nextParticipants: Participant[], nextMode: Mode, nextObjective: RailObjective) => runMutation({ type: 'resetPlan', participants: nextParticipants, mode: nextMode, railObjective: nextObjective }),
+    setDistanceObjective: (nextObjective: DistanceObjective) => runMutation({ type: 'setDistanceObjective', distanceObjective: nextObjective }, false),
+    resetPlan: (nextParticipants: Participant[], nextMode: Mode, nextRailObjective: RailObjective, nextDistanceObjective: DistanceObjective) => runMutation({ type: 'resetPlan', participants: nextParticipants, mode: nextMode, railObjective: nextRailObjective, distanceObjective: nextDistanceObjective }),
     rename: (title: string) => runMutation({ type: 'renamePlan', title }, false),
     setJoining: (enabled: boolean) => runMutation({ type: 'setJoining', enabled }, false),
     async createInvite(participantId: string) {

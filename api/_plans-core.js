@@ -282,10 +282,13 @@ elseif mutation.type == 'setMode' then
   plan.mode = mutation.mode
 elseif mutation.type == 'setRailObjective' then
   plan.railObjective = mutation.railObjective
+elseif mutation.type == 'setDistanceObjective' then
+  plan.distanceObjective = mutation.distanceObjective
 elseif mutation.type == 'resetPlan' then
   plan.participants = mutation.participants
   plan.mode = mutation.mode
   plan.railObjective = mutation.railObjective
+  plan.distanceObjective = mutation.distanceObjective
   local owners = {}
   for _, member in ipairs(plan.members) do
     if member.role == 'owner' then table.insert(owners, member) end
@@ -697,10 +700,13 @@ function applyMemoryMutation(plan, actor, mutation) {
     plan.mode = mutation.mode;
   } else if (mutation.type === 'setRailObjective') {
     plan.railObjective = mutation.railObjective;
+  } else if (mutation.type === 'setDistanceObjective') {
+    plan.distanceObjective = mutation.distanceObjective;
   } else if (mutation.type === 'resetPlan') {
     plan.participants = mutation.participants;
     plan.mode = mutation.mode;
     plan.railObjective = mutation.railObjective;
+    plan.distanceObjective = mutation.distanceObjective;
     plan.members = plan.members.filter((item) => item.role === 'owner');
     plan.claimInvites = [];
   } else if (mutation.type === 'renamePlan') {
@@ -870,6 +876,7 @@ function publicPlan(plan, currentMember) {
     railObjective: plan.railObjective === 'minimax' || plan.railObjective === 'weighted' || plan.railObjective === 'evenness'
       ? plan.railObjective
       : 'average',
+    distanceObjective: plan.distanceObjective === 'median' ? 'median' : 'centroid',
     participants: plan.participants.map((participant) => {
       const { nameKey: _nameKey, ...visible } = participant;
       return visible;
@@ -941,6 +948,12 @@ async function validateMutation(input, plan) {
           : 'average',
         updatedAt,
       };
+    case 'setDistanceObjective':
+      return {
+        type: input.type,
+        distanceObjective: input.distanceObjective === 'median' ? 'median' : 'centroid',
+        updatedAt,
+      };
     case 'resetPlan':
       return {
         type: input.type,
@@ -949,6 +962,7 @@ async function validateMutation(input, plan) {
         railObjective: input.railObjective === 'minimax' || input.railObjective === 'weighted' || input.railObjective === 'evenness'
           ? input.railObjective
           : 'average',
+        distanceObjective: input.distanceObjective === 'median' ? 'median' : 'centroid',
         updatedAt,
       };
     case 'renamePlan': {
@@ -1062,6 +1076,7 @@ export function createPlansHandler({ store: injectedStore } = {}) {
             railObjective: body.railObjective === 'minimax' || body.railObjective === 'weighted' || body.railObjective === 'evenness'
               ? body.railObjective
               : 'average',
+            distanceObjective: body.distanceObjective === 'median' ? 'median' : 'centroid',
             joiningEnabled: true,
             participants,
             members: [owner],
