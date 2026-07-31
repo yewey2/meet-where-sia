@@ -1,5 +1,5 @@
 export type Mode = 'distance' | 'rail';
-export type RailObjective = 'minimax' | 'average' | 'evenness';
+export type RailObjective = 'minimax' | 'average' | 'weighted' | 'evenness';
 export type ParticipantColor =
   | 'coral'
   | 'orange'
@@ -70,6 +70,8 @@ export interface RankedStation extends MrtStation {
   totalMinutes: number;
   averageMinutes: number;
   maxMinutes: number;
+  meanSquaredMinutes: number;
+  rootMeanSquareMinutes: number;
   varianceMinutes: number;
   standardDeviationMinutes: number;
   totalTransfers: number;

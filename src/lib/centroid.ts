@@ -56,31 +56,43 @@ export function geometricMedian(points: Coordinate[]): Coordinate {
     let numeratorX = 0;
     let numeratorY = 0;
     let denominator = 0;
-    let coincidentPoint: { x: number; y: number } | undefined;
+    let coincidentCount = 0;
+    let residualX = 0;
+    let residualY = 0;
 
     for (const point of planar) {
       const distance = Math.hypot(current.x - point.x, current.y - point.y);
 
       if (distance < 0.001) {
-        coincidentPoint = point;
-        break;
+        coincidentCount += 1;
+        continue;
       }
 
       const weight = 1 / distance;
       numeratorX += point.x * weight;
       numeratorY += point.y * weight;
       denominator += weight;
+      residualX += (point.x - current.x) * weight;
+      residualY += (point.y - current.y) * weight;
     }
 
-    if (coincidentPoint) {
-      current = coincidentPoint;
-      break;
-    }
-
-    const next = {
+    const weightedPoint = {
       x: numeratorX / denominator,
       y: numeratorY / denominator,
     };
+    let next = weightedPoint;
+
+    if (coincidentCount > 0) {
+      const residualMagnitude = Math.hypot(residualX, residualY);
+      // Modified Weiszfeld step: an input point is only the answer when its
+      // coincident weight can balance all directions to the other points.
+      if (residualMagnitude <= coincidentCount) break;
+      const retainedWeight = coincidentCount / residualMagnitude;
+      next = {
+        x: retainedWeight * current.x + (1 - retainedWeight) * weightedPoint.x,
+        y: retainedWeight * current.y + (1 - retainedWeight) * weightedPoint.y,
+      };
+    }
 
     if (Math.hypot(next.x - current.x, next.y - current.y) < 0.01) {
       current = next;

@@ -9,7 +9,7 @@ Meet Where Sia is a Singapore-focused meetup planner that finds a fair, practica
 ## Why use it?
 
 - **Plan for the whole group.** Add any number of people, with separate start and end locations when a return journey is not enough.
-- **Minimise total travel by default.** Rail recommendations default to the lowest group-average journey, which is equivalent to minimising the group total for a fixed number of people. Fairness-first and evenness options remain available.
+- **Minimise total travel by default.** Rail recommendations default to the lowest group-average journey, which is equivalent to minimising the group total for a fixed number of people. Weighted-centre, manageable-trip, and similar-travel-time options remain available.
 - **Share one live plan.** Create a link, let friends add or update their own route, and keep organiser controls separate.
 - **Find somewhere nearby.** Explore hawker centres, attractions, coffee, activities, and outdoor options around the result.
 - **Use it without paid APIs.** Exact MRT/LRT station names, Singapore coordinates, official station data, and the OpenStreetMap fallback work without a Google key.
@@ -17,6 +17,7 @@ Meet Where Sia is a Singapore-focused meetup planner that finds a fair, practica
 ## Features
 
 - Estimated travel across the connected Singapore MRT/LRT passenger network
+- Four rail-ranking goals: quickest overall, weighted centre, manageable trips, and similar travel times
 - Line-by-line MRT/LRT instructions with named interchange steps for every leg
 - Pure-distance mode using a geometric median rather than a simple midpoint
 - Interactive map with participant endpoints, the selected meeting point, and close alternatives
@@ -39,7 +40,21 @@ Every endpoint is attached to its nearest connected station. The planner runs sh
 - time on each rail segment; and
 - interchange walking and transfer waits.
 
-By default, candidate stations are ranked by the lowest group-average journey (and therefore the lowest group total), then the shortest longest journey, then proximity to the group's geometric median. Fairness-first and journey-evenness objectives are also available.
+Each person's full outing combines their journey from the start to the meetup and
+from the meetup to their end. Candidate stations can then be ranked with four
+goals:
+
+| App label | Calculation | What it favours |
+| --- | --- | --- |
+| **Quickest overall** | Lowest average full-journey time | The least combined travel for the group |
+| **Weighted centre** | Lowest average squared full-journey time | A compromise where longer trips have progressively more influence |
+| **Keep trips manageable** | Lowest maximum full-journey time (minimax) | The lowest possible ceiling on anyone's outing at each candidate station |
+| **Similar travel times** | Lowest variance between full-journey times | Outings that are close in duration, even when the group total is higher |
+
+Quickest overall is the default. Its tie-breakers are the lowest maximum outing
+time and then proximity to the group's geometric median. Weighted centre ranks
+using squared minutes but displays its root-mean-square score in ordinary
+minutes so the comparison remains readable.
 
 Rail topology can occasionally make a distant interchange look fastest for nearby places on different lines. The planner keeps that rail-only result, but uses the locations' geometric median, geographic radius, and buffered endpoint bounds to flag stations that sit well outside the group's area. In those cases an under-title notice explains why a bus or another direct public-transport route may be more practical, rather than claiming to model a bus journey it has not calculated.
 
@@ -47,7 +62,13 @@ The graph is represented in [`src/lib/railGraph.ts`](src/lib/railGraph.ts). Stat
 
 ### Pure distance
 
-Pure-distance mode uses [Weiszfeld's algorithm](https://en.wikipedia.org/wiki/Geometric_median) on a Singapore-scale local tangent plane to approximate the geometric median. Final distances use the Haversine formula.
+Pure-distance mode uses the modified form of [Weiszfeld's algorithm](https://en.wikipedia.org/wiki/Geometric_median) on a Singapore-scale local tangent plane to approximate the geometric median. The modified coincident-point step prevents an iteration from stopping at an entered location unless that location really is optimal. Final distances use the Haversine formula.
+
+A geometric median minimises the sum of ordinary distances, so repeated
+locations can correctly anchor the result. For example, the geometric median of
+`1, 1, 2` on one axis is `1`. The arithmetic mean is `1.333`; that instead
+minimises the sum of squared distances. The rail planner's **Weighted centre**
+uses this squared-penalty idea with estimated journey times.
 
 Individual distance-mode legs are straight-line estimates. Detailed routing for distance mode and non-MRT/LRT endpoints is not currently calculated by the local planner.
 

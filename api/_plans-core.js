@@ -867,7 +867,7 @@ function publicPlan(plan, currentMember) {
     id: plan.id,
     title: plan.title,
     mode: plan.mode,
-    railObjective: plan.railObjective === 'minimax' || plan.railObjective === 'evenness'
+    railObjective: plan.railObjective === 'minimax' || plan.railObjective === 'weighted' || plan.railObjective === 'evenness'
       ? plan.railObjective
       : 'average',
     participants: plan.participants.map((participant) => {
@@ -936,7 +936,7 @@ async function validateMutation(input, plan) {
     case 'setRailObjective':
       return {
         type: input.type,
-        railObjective: input.railObjective === 'minimax' || input.railObjective === 'evenness'
+        railObjective: input.railObjective === 'minimax' || input.railObjective === 'weighted' || input.railObjective === 'evenness'
           ? input.railObjective
           : 'average',
         updatedAt,
@@ -946,7 +946,7 @@ async function validateMutation(input, plan) {
         type: input.type,
         participants: validateParticipants(input.participants),
         mode: input.mode === 'distance' ? 'distance' : 'rail',
-        railObjective: input.railObjective === 'minimax' || input.railObjective === 'evenness'
+        railObjective: input.railObjective === 'minimax' || input.railObjective === 'weighted' || input.railObjective === 'evenness'
           ? input.railObjective
           : 'average',
         updatedAt,
@@ -1059,7 +1059,7 @@ export function createPlansHandler({ store: injectedStore } = {}) {
             id: planId,
             title,
             mode: body.mode === 'distance' ? 'distance' : 'rail',
-            railObjective: body.railObjective === 'minimax' || body.railObjective === 'evenness'
+            railObjective: body.railObjective === 'minimax' || body.railObjective === 'weighted' || body.railObjective === 'evenness'
               ? body.railObjective
               : 'average',
             joiningEnabled: true,

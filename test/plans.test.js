@@ -285,6 +285,12 @@ test('rail objective is created, mutated, reset, and exposed with an old-plan de
   });
   assert.equal(fairnessFirst.body.plan.railObjective, 'minimax');
 
+  const weighted = await request(handler, {
+    method: 'POST', cookie,
+    body: { action: 'mutate', planId, mutation: { type: 'setRailObjective', railObjective: 'weighted' } },
+  });
+  assert.equal(weighted.body.plan.railObjective, 'weighted');
+
   const reset = await request(handler, {
     method: 'POST', cookie,
     body: { action: 'mutate', planId, mutation: { type: 'resetPlan', participants: [participant], mode: 'rail' } },

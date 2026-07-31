@@ -19,8 +19,8 @@ async function loadRailGraph() {
   return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 }
 
-function station(name, averageMinutes, maxMinutes, varianceMinutes, centroidKm = 1) {
-  return { name, averageMinutes, maxMinutes, varianceMinutes, centroidKm };
+function station(name, averageMinutes, maxMinutes, varianceMinutes, centroidKm = 1, meanSquaredMinutes = averageMinutes ** 2 + varianceMinutes) {
+  return { name, averageMinutes, maxMinutes, varianceMinutes, centroidKm, meanSquaredMinutes };
 }
 
 test('minimax objective prioritizes the shortest longest journey', async () => {
@@ -47,13 +47,21 @@ test('evenness objective prioritizes variance before average journey time', asyn
   assert.ok(compareRankedStations(moreEven, lowerAverage, 'evenness') < 0);
 });
 
+test('weighted objective prioritizes the average squared full-journey time', async () => {
+  const { compareRankedStations } = await loadRailGraph();
+  const lowerAverageButSkewed = station('Skewed', 20, 50, 300, 1, 700);
+  const balanced = station('Balanced', 22, 30, 20, 1, 504);
+
+  assert.ok(compareRankedStations(balanced, lowerAverageButSkewed, 'weighted') < 0);
+});
+
 test('rail objectives use centroid proximity and station name as stable tie-breakers', async () => {
   const { compareRankedStations } = await loadRailGraph();
   const farther = station('Alpha', 20, 30, 100, 2);
   const nearer = station('Zulu', 20, 30, 100, 1);
   const alphabetical = station('Alpha', 20, 30, 100, 1);
 
-  for (const objective of ['minimax', 'average', 'evenness']) {
+  for (const objective of ['minimax', 'average', 'weighted', 'evenness']) {
     assert.ok(compareRankedStations(nearer, farther, objective) < 0);
     assert.ok(compareRankedStations(alphabetical, nearer, objective) < 0);
   }

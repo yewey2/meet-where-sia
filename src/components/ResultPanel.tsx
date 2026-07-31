@@ -49,15 +49,19 @@ function formatMinutes(value: number): string {
 }
 
 function objectiveLabel(objective: RailObjective): string {
-  if (objective === 'average') return 'Lowest total travel time';
-  if (objective === 'evenness') return 'Most even journeys';
-  return 'Shortest longest journey';
+  if (objective === 'average') return 'Quickest overall';
+  if (objective === 'weighted') return 'Weighted centre';
+  if (objective === 'evenness') return 'Similar travel times';
+  return 'Keep trips manageable';
 }
 
 function objectiveMetric(station: RankedStation, objective: RailObjective): string {
   if (objective === 'average') return `${formatMinutes(station.totalMinutes)} group total`;
+  if (objective === 'weighted') {
+    return `${formatMinutes(station.rootMeanSquareMinutes)} weighted score`;
+  }
   if (objective === 'evenness') return `${formatMinutes(station.standardDeviationMinutes)} spread`;
-  return `${formatMinutes(station.maxMinutes)} longest total`;
+  return `${formatMinutes(station.maxMinutes)} time ceiling`;
 }
 
 const RAIL_LINE_NAMES: Record<string, string> = {
@@ -552,15 +556,19 @@ export function ResultPanel({
             {result.mode === 'rail'
               ? result.objective === 'average'
                 ? 'Group total'
+                : result.objective === 'weighted'
+                  ? 'Weighted time score'
                 : result.objective === 'evenness'
                   ? 'Journey-time spread'
-                  : 'Longest full outing'
+                  : 'Highest outing time'
               : 'Average distance'}
           </span>
           <strong>
             {result.mode === 'rail'
               ? result.objective === 'average'
                 ? formatMinutes(result.totalMinutes)
+                : result.objective === 'weighted'
+                  ? formatMinutes(result.station.rootMeanSquareMinutes)
                 : result.objective === 'evenness'
                   ? formatMinutes(result.station.standardDeviationMinutes)
                   : formatMinutes(result.maxMinutes)
@@ -569,7 +577,7 @@ export function ResultPanel({
         </div>
         <div className="metric-card">
           <span>{result.mode === 'rail'
-            ? result.objective === 'average' ? 'Longest full outing' : 'Average per person'
+            ? result.objective === 'average' ? 'Highest outing time' : 'Average per person'
             : 'Farthest person'}</span>
           <strong>
             {result.mode === 'rail'

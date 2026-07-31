@@ -78,21 +78,30 @@ const RAIL_OBJECTIVE_OPTIONS: Array<{
     tradeoff: 'The longest individual journey may still be noticeably longer.',
   },
   {
-    id: 'minimax',
-    label: 'Limit longest',
+    id: 'weighted',
+    label: 'Weighted centre',
     summary:
-      'Makes the longest individual outing as short as possible, even if everyone travels more overall.',
+      'Balances speed and fairness by giving progressively more weight to longer trips.',
     detail:
-      'Protects the person with the longest total journey by making that journey as short as possible.',
+      'Minimises the average of everyone’s squared full journey time. A trip twice as long has four times the influence.',
+    tradeoff: 'The group total may be slightly higher than the quickest-overall option.',
+  },
+  {
+    id: 'minimax',
+    label: 'Keep trips manageable',
+    summary:
+      'Chooses the place with the lowest possible ceiling on anyone’s full outing.',
+    detail:
+      'This is the minimax calculation: it compares each station’s highest full outing time, whoever that person would be there.',
     tradeoff: 'The group’s combined journey time may be higher.',
   },
   {
     id: 'evenness',
-    label: 'Most even',
+    label: 'Similar travel times',
     summary:
       'Keeps everyone’s total outing times close together, even if the group travels more overall.',
     detail:
-      'Minimises the spread between people’s complete journey times so the effort is more evenly shared.',
+      'Minimises the variance between people’s complete journey times so the effort is more evenly shared.',
     tradeoff: 'The fairest split may not be the quickest option for the group.',
   },
 ];
@@ -160,7 +169,9 @@ function loadSavedState(): {
         : [createParticipant()],
       mode: parsed.mode === 'distance' ? 'distance' : 'rail',
       railObjective:
-        parsed.railObjective === 'minimax' || parsed.railObjective === 'evenness'
+        parsed.railObjective === 'minimax' ||
+        parsed.railObjective === 'weighted' ||
+        parsed.railObjective === 'evenness'
           ? parsed.railObjective
           : 'average',
     };

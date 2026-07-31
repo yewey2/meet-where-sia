@@ -46,6 +46,8 @@ test('rail fairness uses each person full outing while preserving both legs', as
     totalMinutes: 80,
     averageMinutes: 40,
     maxMinutes: 40,
+    meanSquaredMinutes: 1600,
+    rootMeanSquareMinutes: 40,
     varianceMinutes: 0,
     standardDeviationMinutes: 0,
   });
@@ -64,6 +66,8 @@ test('rail evenness metrics measure variance between complete participant outing
     totalMinutes: 60,
     averageMinutes: 30,
     maxMinutes: 50,
+    meanSquaredMinutes: 1300,
+    rootMeanSquareMinutes: Math.sqrt(1300),
     varianceMinutes: 400,
     standardDeviationMinutes: 20,
   });
@@ -76,6 +80,8 @@ test('empty rail journeys have finite zero-valued metrics', async () => {
     totalMinutes: 0,
     averageMinutes: 0,
     maxMinutes: 0,
+    meanSquaredMinutes: 0,
+    rootMeanSquareMinutes: 0,
     varianceMinutes: 0,
     standardDeviationMinutes: 0,
   });
