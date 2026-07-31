@@ -542,7 +542,7 @@ export function ResultPanel({
           ) : (
             <p className="result-address">
               <MapPinIcon />
-              <span>{result.address || 'Approximate centre of the locations entered'}</span>
+              <span>{result.address || 'Point with the lowest combined distance'}</span>
             </p>
           )}
         </div>

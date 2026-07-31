@@ -630,7 +630,7 @@ export default function App() {
         const center = geometricMedian(points);
         const metrics = distanceMetrics(center, points);
         const address = await reverseGeocode(center);
-        const title = address.split(',')[0]?.trim() || 'Fair distance centre';
+        const title = address.split(',')[0]?.trim() || 'Minimum-distance point';
 
         nextResult = {
           mode: 'distance',
@@ -917,7 +917,7 @@ export default function App() {
                     }}
                   />
                   <RouteIcon />
-                  <span><strong>Distance</strong><small>Straight-line balance</small></span>
+                  <span><strong>Distance</strong><small>Lowest combined distance</small></span>
                 </label>
               </fieldset>
               {mode === 'rail' ? (
