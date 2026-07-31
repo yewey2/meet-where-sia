@@ -63,7 +63,7 @@ function leafletMarkerIcon(
   color?: ParticipantColorOption,
   offset?: { x: number; y: number },
 ) {
-  const size = kind === 'result' ? 39 : kind === 'alternative' ? 25 : 30;
+  const size = kind === 'result' ? 39 : kind === 'alternative' ? 44 : 30;
   const element = markerElement(kind, text, color);
   const markerOffset = offset ?? { x: 0, y: 0 };
 
@@ -129,11 +129,26 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | undefined>(undefined);
   const overlaysRef = useRef<L.LayerGroup | undefined>(undefined);
+  const fittedGeometryRef = useRef('');
   const [isReady, setIsReady] = useState(false);
   const [provider, setProvider] = useState<MapProvider>(
     apiKey ? 'google' : 'openstreetmap',
   );
   const [providerNotice, setProviderNotice] = useState('');
+  const fitSignature = useMemo(() => {
+    const pointSignature = points
+      .map((point) => `${point.id}:${point.lat.toFixed(6)},${point.lng.toFixed(6)}`)
+      .sort()
+      .join('|');
+    const resultSignature = !result
+      ? 'no-result'
+      : result.mode === 'rail'
+        ? result.alternatives
+            .map((station) => `${station.id}:${station.lat.toFixed(6)},${station.lng.toFixed(6)}`)
+            .join('|')
+        : `distance:${result.lat.toFixed(6)},${result.lng.toFixed(6)}`;
+    return `${pointSignature}::${resultSignature}`;
+  }, [points, result]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -249,7 +264,7 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
           color,
           offsets.get(point.id),
         ),
-        keyboard: true,
+        keyboard: false,
         title: `${point.participantName}: ${
           point.kind === 'start' ? 'start' : 'end'
         } — ${point.label}`,
@@ -283,7 +298,7 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
       const resultMarker = L.marker([result.lat, result.lng], {
         alt: `Meeting point: ${result.title}`,
         icon: leafletMarkerIcon('result', result.mode === 'rail' ? 'M' : '★'),
-        keyboard: true,
+        keyboard: false,
         title: result.title,
         zIndexOffset: 2000,
       }).addTo(overlays);
@@ -294,18 +309,19 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
       bounds.extend([result.lat, result.lng]);
 
       if (result.mode === 'rail') {
-        for (const alternative of result.alternatives
-          .filter((station) => station.id !== result.station.id)
+        for (const { station: alternative, rank } of result.alternatives
+          .map((station, index) => ({ station, rank: index + 1 }))
+          .filter(({ station }) => station.id !== result.station.id)
           .slice(0, 3)) {
           const marker = L.marker([alternative.lat, alternative.lng], {
-            alt: `Choose alternative: ${alternative.name} ${alternative.network}`,
-            icon: leafletMarkerIcon('alternative', 'M'),
-            keyboard: true,
-            title: `Choose ${alternative.name} ${alternative.network}`,
+            alt: `Select rank ${rank}: ${alternative.name} ${alternative.network}`,
+            icon: leafletMarkerIcon('alternative', String(rank)),
+            keyboard: false,
+            title: `Select ${alternative.name} ${alternative.network}`,
             zIndexOffset: 200,
           }).addTo(overlays);
           marker.bindTooltip(
-            `${escapeHtml(alternative.name)} ${escapeHtml(alternative.network)} — click to choose`,
+            `Select ${escapeHtml(alternative.name)} ${escapeHtml(alternative.network)}`,
             { direction: 'top', offset: [0, -14] },
           );
           marker.on('click', () => onSelectStation(alternative));
@@ -314,6 +330,8 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
       }
     }
 
+    if (fittedGeometryRef.current === fitSignature) return;
+    fittedGeometryRef.current = fitSignature;
     const reduceMotion = window.matchMedia(
       '(prefers-reduced-motion: reduce)',
     ).matches;
@@ -331,7 +349,7 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
         { animate: !reduceMotion },
       );
     }
-  }, [isReady, onSelectStation, points, result]);
+  }, [fitSignature, isReady, onSelectStation, points, result]);
 
   return (
     <div className="map-wrap">
@@ -357,6 +375,12 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
       {providerNotice ? (
         <div className="map-provider-notice" role="status">
           {providerNotice}
+        </div>
+      ) : null}
+      {result ? (
+        <div className="map-selection-status">
+          <span>{result.mode === 'rail' ? 'Meeting station' : 'Meeting point'}</span>
+          <strong>{result.title}</strong>
         </div>
       ) : null}
       <MapLegend />

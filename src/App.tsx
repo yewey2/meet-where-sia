@@ -370,12 +370,10 @@ export default function App() {
       settledFrame = window.requestAnimationFrame(() => {
         const target = document.getElementById('meeting-result');
         if (!target) return;
-        const reduceMotion = window.matchMedia(
-          '(prefers-reduced-motion: reduce)',
-        ).matches;
-        if (reduceMotion) return;
         target.scrollIntoView({
-          behavior: 'smooth',
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            ? 'auto'
+            : 'smooth',
           block: 'start',
         });
       });
@@ -491,19 +489,6 @@ export default function App() {
     });
   }, []);
 
-  const selectMeetingStationFromMap = useCallback((station: RankedStation) => {
-    selectMeetingStation(station);
-    window.requestAnimationFrame(() => {
-      const heading = document.getElementById('meeting-result-title');
-      document.getElementById('meeting-result')?.scrollIntoView({
-        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-          ? 'auto'
-          : 'smooth',
-        block: 'start',
-      });
-      heading?.focus({ preventScroll: true });
-    });
-  }, [selectMeetingStation]);
   async function ensureStations(): Promise<MrtStation[]> {
     if (stations.length) return stations;
     const response = await fetchMrtStations();
@@ -665,15 +650,6 @@ export default function App() {
     }
   }
 
-  const modeDescription =
-    mode === 'distance'
-      ? 'Balances straight-line distance for the whole group.'
-      : railObjective === 'average'
-        ? 'Minimises the group\'s combined full journey time.'
-        : railObjective === 'evenness'
-          ? 'Finds the most even full journey times across the group.'
-          : 'Keeps the longest full journey as short as possible.';
-
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -781,17 +757,13 @@ export default function App() {
             ) : null}
           </div>
 
-          <details className="mode-disclosure">
-            <summary>
-              <span className="mode-summary-copy">
-                {mode === 'rail' ? <RailIcon /> : <RouteIcon />}
-                <span>
-                  <strong>{mode === 'rail' ? 'Fair by MRT/LRT time' : 'Fair by distance'}</strong>
-                  <small>{modeDescription}</small>
-                </span>
-              </span>
-              <span className="mode-change-label">{canManagePlan ? 'Change' : 'View'}</span>
-            </summary>
+          <section className="method-panel" aria-labelledby="method-title">
+            <div className="method-panel-heading">
+              <div>
+                <div className="section-label" id="method-title">How should we choose?</div>
+                <p>Pick what “fair” means for this meetup.</p>
+              </div>
+            </div>
             <div className="mode-section">
               <fieldset className="mode-switch">
                 <legend className="sr-only">How should the meeting spot be chosen?</legend>
@@ -810,7 +782,7 @@ export default function App() {
                     }}
                   />
                   <RailIcon />
-                  <span><strong>By MRT/LRT</strong><small>Balances travel time</small></span>
+                  <span><strong>MRT/LRT time</strong><small>Practical for train trips</small></span>
                 </label>
                 <label className={mode === 'distance' ? 'is-selected' : ''}>
                   <input
@@ -827,12 +799,12 @@ export default function App() {
                     }}
                   />
                   <RouteIcon />
-                  <span><strong>By distance</strong><small>Balances kilometres</small></span>
+                  <span><strong>Distance</strong><small>Straight-line balance</small></span>
                 </label>
               </fieldset>
               {mode === 'rail' ? (
                 <fieldset className="rail-objective-picker">
-                  <legend>What should the rail recommendation optimise?</legend>
+                  <legend>Prioritise</legend>
                   <label>
                     <input
                       type="radio"
@@ -847,7 +819,7 @@ export default function App() {
                         setGlobalError('');
                       }}
                     />
-                    <span><strong>Lowest total travel time</strong><small>Minimises everyone’s combined full journeys</small></span>
+                    <span><strong>Quickest overall</strong><small>Lowest combined journey time</small></span>
                   </label>
                   <label>
                     <input
@@ -863,7 +835,7 @@ export default function App() {
                         setGlobalError('');
                       }}
                     />
-                    <span><strong>Shortest longest journey</strong><small>Protects the person with the longest full trip</small></span>
+                    <span><strong>Limit longest</strong><small>Protects the person with the longest journey</small></span>
                   </label>
                   <label>
                     <input
@@ -879,7 +851,7 @@ export default function App() {
                         setGlobalError('');
                       }}
                     />
-                    <span><strong>Most even journeys</strong><small>Minimises the spread between people’s full trips</small></span>
+                    <span><strong>Most even</strong><small>Keeps everyone’s journey times closer</small></span>
                   </label>
                 </fieldset>
               ) : null}
@@ -887,11 +859,11 @@ export default function App() {
                 <p className="inline-warning">Rail data is unavailable right now. {stationLoadError}</p>
               ) : null}
             </div>
-          </details>
+          </section>
 
           {!hasGoogleKey ? (
             <p className="inline-warning" role="status">
-              Google place search is not configured. Locations remain limited to MRT/LRT stations and Singapore coordinates until the deployment API key is updated.
+              Place search is limited to MRT/LRT stations and Singapore coordinates right now.
             </p>
           ) : null}
 
@@ -952,7 +924,7 @@ export default function App() {
               <MapPanel
                 points={mapPoints}
                 result={result}
-                onSelectStation={selectMeetingStationFromMap}
+                onSelectStation={selectMeetingStation}
               />
             </Suspense>
           ) : null}

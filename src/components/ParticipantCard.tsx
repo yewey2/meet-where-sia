@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import type { MrtStation, Participant } from '../types';
 import {
   PARTICIPANT_COLORS,
@@ -28,6 +28,7 @@ export function ParticipantCard({
   canEditName,
   readOnly,
 }: ParticipantCardProps) {
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const displayName = participant.name.trim() || `Person ${index + 1}`;
   const namePlaceholder = index === 0 ? 'You' : `Friend ${index + 1}`;
   const selectedColor = participantColorOption(participant.color);
@@ -71,26 +72,54 @@ export function ParticipantCard({
         </button>
       </div>
 
-      <div className="participant-color-picker" role="group" aria-label={`Map colour for ${displayName}`}>
-        <span>Map colour</span>
-        <div className="participant-color-options">
-          {PARTICIPANT_COLORS.map((color) => (
-            <button
-              type="button"
-              key={color.id}
-              className="participant-color-option"
-              style={{
-                '--swatch-light': color.light,
-                '--swatch-dark': color.dark,
-              } as CSSProperties}
-              aria-label={`Use ${color.label} for ${displayName}`}
-              aria-pressed={participant.color === color.id}
-              title={`${color.label}: light start, dark end`}
-              disabled={readOnly}
-              onClick={() => onChange({ ...participant, color: color.id })}
-            />
-          ))}
-        </div>
+      <div className="participant-color-picker">
+        <button
+          type="button"
+          className="participant-color-trigger"
+          aria-expanded={colorPickerOpen}
+          aria-controls={`${participant.id}-color-options`}
+          disabled={readOnly}
+          onClick={() => setColorPickerOpen((open) => !open)}
+        >
+          <span
+            className="participant-color-swatch"
+            style={{
+              '--swatch-light': selectedColor.light,
+              '--swatch-dark': selectedColor.dark,
+            } as CSSProperties}
+            aria-hidden="true"
+          />
+          <span>Map colour</span>
+          <small>{selectedColor.label}</small>
+        </button>
+        {colorPickerOpen ? (
+          <div
+            className="participant-color-options"
+            id={`${participant.id}-color-options`}
+            role="group"
+            aria-label={`Map colour for ${displayName}`}
+          >
+            {PARTICIPANT_COLORS.map((color) => (
+              <button
+                type="button"
+                key={color.id}
+                className="participant-color-option"
+                style={{
+                  '--swatch-light': color.light,
+                  '--swatch-dark': color.dark,
+                } as CSSProperties}
+                aria-label={`Use ${color.label} for ${displayName}`}
+                aria-pressed={participant.color === color.id}
+                title={`${color.label}: light start, dark end`}
+                disabled={readOnly}
+                onClick={() => {
+                  onChange({ ...participant, color: color.id });
+                  setColorPickerOpen(false);
+                }}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div

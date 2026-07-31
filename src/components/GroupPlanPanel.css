@@ -2,7 +2,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 38px;
+  min-height: 44px;
   padding: 7px 11px;
   border: 1px solid var(--line, #dddde5);
   border-radius: 11px;
@@ -69,7 +69,7 @@
 .group-hint { color: var(--muted, #777a85); font-size: 12px; line-height: 1.5; }
 .group-error { display: flex; gap: 7px; margin: 8px 0 0; padding: 10px 11px; border-radius: 9px; color: #9b2e3d; background: #fff0f2; font-size: 12px; line-height: 1.4; }
 .group-error button { border: 0; color: inherit; background: transparent; cursor: pointer; }
-.group-dialog-close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border: 0; border-radius: 9px; color: var(--muted, #696c77); background: transparent; cursor: pointer; font-size: 22px; }
+.group-dialog-close { position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; border: 0; border-radius: 9px; color: var(--muted, #696c77); background: transparent; cursor: pointer; font-size: 22px; }
 .group-share-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin-top: 18px; }
 .group-share-row button,
 .group-inline-form button,
@@ -97,7 +97,7 @@
 .group-local-link { display: inline-block; margin-top: 18px; color: var(--muted, #686b77); font-size: 11px; }
 .group-standalone-action { width: 100%; margin-top: 18px; }
 .group-access-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 5px; margin-top: 16px; padding: 4px; border-radius: 11px; background: var(--surface-alt, #f7f7f9); }
-.group-access-tabs button { min-height: 38px; padding: 7px 8px; border: 0; border-radius: 8px; color: var(--muted, #696c77); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 750; }
+.group-access-tabs button { min-height: 44px; padding: 7px 8px; border: 0; border-radius: 8px; color: var(--muted, #696c77); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 750; }
 .group-access-tabs button.is-active { color: var(--ink, #272832); background: var(--surface, #fff); box-shadow: 0 1px 4px rgb(24 26 35 / 10%); }
 .group-access-form { margin-top: 8px !important; }
 .group-access-tools { margin-top: 16px; padding-top: 0; border-top: 0; }
@@ -109,7 +109,7 @@
 .group-invite-result > small { color: var(--muted, #70737e); font-size: 11px; line-height: 1.45; }
 .group-invite-result .group-share-row { margin-top: 0; }
 .group-dialog :focus-visible,
-.group-plan-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent, #5b47e7) 32%, transparent); outline-offset: 2px; }
+.group-plan-button:focus-visible { outline: 3px solid var(--focus, #a82b27); outline-offset: 2px; }
 
 @media (max-width: 560px) {
   .group-dialog-backdrop.is-access { padding: 9px; }

@@ -253,12 +253,12 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
   const buttonLabel = props.requestedPlanId && !props.plan
     ? props.busy ? 'Loading shared plan…' : 'Shared plan unavailable'
     : !props.plan
-      ? 'Make this a shared plan'
-    : owner
-      ? 'Shared plan · Manage'
-      : currentMember
-        ? 'My shared route'
-        : 'Join this plan';
+      ? 'Share'
+      : owner
+        ? 'Manage'
+        : currentMember
+          ? 'My route'
+          : 'Join';
 
   const combinedError = localError || props.error;
   const isAccessDialog = dialog === 'manage' && Boolean(props.plan) && !currentMember;
@@ -270,6 +270,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
         ref={triggerRef}
         type="button"
         className={props.plan ? 'group-plan-button is-shared' : 'group-plan-button'}
+        aria-label={!props.plan && !props.requestedPlanId ? 'Create a shared plan' : buttonLabel}
         onClick={() => setDialog(props.requestedPlanId || props.plan ? 'manage' : 'create')}
       >
         <span className="group-plan-dot" />

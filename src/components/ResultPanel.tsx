@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   DistanceResult,
   EndpointPoint,
@@ -362,8 +362,6 @@ function DistanceJourneyCard({
   );
 }
 
-const ROUTE_PREVIEW_COUNT = 4;
-
 export function ResultPanel({
   result,
   isCalculating,
@@ -373,16 +371,7 @@ export function ResultPanel({
 }: ResultPanelProps) {
   const [shareStatus, setShareStatus] = useState('');
   const [detourTooltipOpen, setDetourTooltipOpen] = useState(false);
-  const resultHeadingRef = useRef<HTMLHeadingElement>(null);
-  const shouldFocusHeadingRef = useRef(false);
-  const selectedStationId =
-    result?.mode === 'rail' ? result.station.id : '';
-
-  useEffect(() => {
-    if (!shouldFocusHeadingRef.current) return;
-    shouldFocusHeadingRef.current = false;
-    resultHeadingRef.current?.focus({ preventScroll: true });
-  }, [selectedStationId]);
+  const [nearbyOpen, setNearbyOpen] = useState(false);
 
   useEffect(() => {
     setShareStatus('');
@@ -477,11 +466,6 @@ export function ResultPanel({
     }
   }
 
-  function selectStation(station: RankedStation) {
-    shouldFocusHeadingRef.current = true;
-    onSelectStation(station);
-  }
-
   return (
     <section
       id="meeting-result"
@@ -504,7 +488,7 @@ export function ResultPanel({
 
       <div className="result-title-row">
         <div>
-          <h2 id="meeting-result-title" ref={resultHeadingRef} tabIndex={-1}>
+          <h2 id="meeting-result-title">
             {result.title}
           </h2>
           {result.mode === 'rail' ? (
@@ -517,18 +501,20 @@ export function ResultPanel({
                       type="button"
                       className="rail-detour-trigger"
                       aria-label="Why another route may be better"
-                      aria-describedby="rail-detour-explanation"
                       aria-controls="rail-detour-explanation"
                       aria-expanded={detourTooltipOpen}
                       onClick={() => setDetourTooltipOpen((open) => !open)}
-                      onBlur={() => setDetourTooltipOpen(false)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') setDetourTooltipOpen(false);
+                      }}
                     >
-                      ?
+                      Why?
                     </button>
                     <span
                       id="rail-detour-explanation"
                       className="rail-detour-tooltip"
-                      role="tooltip"
+                      role="note"
+                      hidden={!detourTooltipOpen}
                     >
                       The MRT/LRT estimate is lowest here, but this station sits
                       well beyond the area between the locations you entered. Rail
@@ -556,11 +542,6 @@ export function ResultPanel({
             </p>
           )}
         </div>
-        {result.mode === 'rail' ? (
-          <span className={`network-badge network-${result.station.network.toLowerCase()}`}>
-            {result.station.network}
-          </span>
-        ) : null}
       </div>
 
       {result.mode === 'rail' ? <TrainStatus alerts={trainAlerts} /> : null}
@@ -600,86 +581,6 @@ export function ResultPanel({
         </div>
       </div>
 
-      {result.mode === 'rail' ? (
-        <div className="journey-summary">
-          <div className="journey-summary-heading">
-            <div className="section-label">Everyone&apos;s full trip</div>
-            <p>
-              {hasUnsupportedRailJourneys
-                ? 'Detailed rail steps are shown for MRT/LRT endpoints; other locations use straight-line distance only.'
-                : 'Each total includes getting to the meetup and travelling onwards afterwards.'}
-            </p>
-          </div>
-          <ul className="journey-list">
-            {participantJourneys.slice(0, ROUTE_PREVIEW_COUNT).map((summary) => (
-              <RailParticipantJourneyCard
-                key={summary.participantId}
-                summary={summary}
-                pointsById={pointsById}
-                result={result}
-              />
-            ))}
-          </ul>
-          {participantJourneys.length > ROUTE_PREVIEW_COUNT ? (
-            <details className="journey-more">
-              <summary>
-                Show {participantJourneys.length - ROUTE_PREVIEW_COUNT} more{' '}
-                {participantJourneys.length - ROUTE_PREVIEW_COUNT === 1 ? 'person' : 'people'}
-              </summary>
-              <ul className="journey-list">
-                {participantJourneys.slice(ROUTE_PREVIEW_COUNT).map((summary) => (
-                  <RailParticipantJourneyCard
-                    key={summary.participantId}
-                    summary={summary}
-                    pointsById={pointsById}
-                    result={result}
-                  />
-                ))}
-              </ul>
-            </details>
-          ) : null}
-        </div>
-      ) : null}
-
-      {result.mode === 'distance' && distanceJourneys.length ? (
-        <div className="journey-summary">
-          <div className="journey-summary-heading">
-            <div className="section-label">Distances for everyone</div>
-            <p>Both legs are straight-line estimates; detailed routing is not supported yet.</p>
-          </div>
-          <ul className="journey-list">
-            {distanceJourneys.slice(0, ROUTE_PREVIEW_COUNT).map((journey) => (
-              <DistanceJourneyCard
-                key={journey.participantId}
-                journey={journey}
-                result={result}
-              />
-            ))}
-          </ul>
-          {distanceJourneys.length > ROUTE_PREVIEW_COUNT ? (
-            <details className="journey-more">
-              <summary>
-                Show {distanceJourneys.length - ROUTE_PREVIEW_COUNT} more{' '}
-                {distanceJourneys.length - ROUTE_PREVIEW_COUNT === 1 ? 'person' : 'people'}
-              </summary>
-              <ul className="journey-list">
-                {distanceJourneys.slice(ROUTE_PREVIEW_COUNT).map((journey) => (
-                  <DistanceJourneyCard
-                    key={journey.participantId}
-                    journey={journey}
-                    result={result}
-                  />
-                ))}
-              </ul>
-            </details>
-          ) : null}
-        </div>
-      ) : null}
-
-      {result.mode === 'rail' ? (
-        <p className="result-tip">Confirm the station exit or venue with your group.</p>
-      ) : null}
-
       <div className="result-actions">
         <button type="button" className="share-result-button" onClick={() => void shareResult()}>
           <ShareIcon />
@@ -695,56 +596,121 @@ export function ResultPanel({
           <ArrowUpRightIcon />
           <span className="sr-only"> (opens in a new tab)</span>
         </a>
+        <span className="sr-only" aria-live="polite">{shareStatus}</span>
       </div>
 
       {result.mode === 'rail' && result.alternatives.length > 1 ? (
-        <details className="result-disclosure">
-          <summary>Other good stations</summary>
-          <div className="alternatives-block">
-            <div className="alternative-list">
-              {result.alternatives
-                .map((station, index) => ({ station, rank: index + 1 }))
-                .filter(({ station }) => station.id !== result.station.id)
-                .map(({ station, rank }) => (
-                  <button
-                    type="button"
-                    className="alternative-row"
-                    key={station.id}
-                    aria-label={`Rank ${rank}: choose ${station.name} ${station.network}, ${objectiveMetric(station, result.objective)}`}
-                    onClick={() => selectStation(station)}
-                  >
-                    <span className="alternative-rank">{rank}</span>
-                    <span className="alternative-name">
-                      <strong>{station.name}</strong>
-                      <small>
-                        {station.lineCodes.join('/')} · average total {formatMinutes(station.averageMinutes)}
-                      </small>
-                    </span>
-                    <span className="alternative-duration">
-                      {objectiveMetric(station, result.objective)}
-                    </span>
-                  </button>
-                ))}
+        <fieldset className="station-comparison">
+          <legend>Compare top stations</legend>
+          <p>Choose another station to update the plan in place.</p>
+          <div className="station-option-list">
+            {result.alternatives.map((station, index) => {
+              const selected = station.id === result.station.id;
+              return (
+                <label
+                  className={`station-option ${selected ? 'is-selected' : ''}`}
+                  key={station.id}
+                >
+                  <input
+                    type="radio"
+                    name="meeting-station"
+                    value={station.id}
+                    checked={selected}
+                    onChange={() => onSelectStation(station)}
+                  />
+                  <span className="alternative-rank">{index + 1}</span>
+                  <span className="alternative-name">
+                    <strong>{station.name}</strong>
+                    <small>
+                      {station.lineCodes.join('/')} · {objectiveMetric(station, result.objective)}
+                    </small>
+                  </span>
+                  <span className="station-option-action">
+                    {selected ? 'Selected' : 'Choose'}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      ) : null}
+
+      {result.mode === 'rail' ? (
+        <p className="result-tip">Confirm the station exit or venue with your group.</p>
+      ) : null}
+
+      {result.mode === 'rail' ? (
+        <details className="result-section-disclosure">
+          <summary>
+            <span><strong>Journey details</strong><small>Routes for {participantJourneys.length} {participantJourneys.length === 1 ? 'person' : 'people'}</small></span>
+            <span className="disclosure-action">View</span>
+          </summary>
+          <div className="journey-summary">
+            <div className="journey-summary-heading">
+              <div className="section-label">Everyone&apos;s full journey</div>
+              <p>
+                {hasUnsupportedRailJourneys
+                  ? 'Rail steps are shown for MRT/LRT endpoints; other locations use straight-line distance only.'
+                  : 'Each total includes getting to the meetup and travelling onwards afterwards.'}
+              </p>
             </div>
+            <ul className="journey-list">
+              {participantJourneys.map((summary) => (
+                <RailParticipantJourneyCard
+                  key={summary.participantId}
+                  summary={summary}
+                  pointsById={pointsById}
+                  result={result}
+                />
+              ))}
+            </ul>
+          </div>
+        </details>
+      ) : null}
+
+      {result.mode === 'distance' && distanceJourneys.length ? (
+        <details className="result-section-disclosure">
+          <summary>
+            <span><strong>Journey details</strong><small>Distances for {distanceJourneys.length} {distanceJourneys.length === 1 ? 'person' : 'people'}</small></span>
+            <span className="disclosure-action">View</span>
+          </summary>
+          <div className="journey-summary">
+            <div className="journey-summary-heading">
+              <div className="section-label">Distances for everyone</div>
+              <p>Both legs are straight-line estimates; detailed routing is not supported yet.</p>
+            </div>
+            <ul className="journey-list">
+              {distanceJourneys.map((journey) => (
+                <DistanceJourneyCard
+                  key={journey.participantId}
+                  journey={journey}
+                  result={result}
+                />
+              ))}
+            </ul>
           </div>
         </details>
       ) : null}
 
       {result.mode === 'rail' ? (
-        <details className="result-disclosure">
-          <summary>Food and things nearby</summary>
-          <NearbyDiscovery result={result} />
+        <details
+          className="result-section-disclosure"
+          onToggle={(event) => setNearbyOpen(event.currentTarget.open)}
+        >
+          <summary>
+            <span><strong>Places nearby</strong><small>Food, coffee and things to do</small></span>
+            <span className="disclosure-action">Explore</span>
+          </summary>
+          {nearbyOpen ? <NearbyDiscovery result={result} /> : null}
         </details>
       ) : null}
 
-      <details className="result-disclosure">
-        <summary>How this was chosen</summary>
-        <p className="method-note">
-          {result.mode === 'rail'
-            ? `${objectiveLabel(result.objective)} was selected. Compared ${result.candidateCount} connected stations using each person's combined trip to the meetup and onwards afterwards. ${result.objective === 'average' ? 'Stations were ranked by the group’s combined time; for a fixed group this is equivalent to ranking by its average.' : result.objective === 'evenness' ? 'Stations were ranked by the variance in people’s total times, with average and longest time used to break close ties.' : 'Stations were ranked by the longest participant total, with the group average used to break close ties.'} Estimates include walking, waiting, train travel and transfers, but not buses.`
-            : 'This point approximately minimises the combined straight-line distance to every location.'}
-        </p>
-      </details>
+      <p className="result-method-summary">
+        <strong>Why this spot?</strong>{' '}
+        {result.mode === 'rail'
+          ? `Compared ${result.candidateCount} connected stations for ${objectiveLabel(result.objective).toLowerCase()}, including each person’s journey to the meetup and onwards. Estimates cover walking, waits, trains and transfers, but not buses.`
+          : 'This point approximately minimises the combined straight-line distance to every location.'}
+      </p>
     </section>
   );
 }
