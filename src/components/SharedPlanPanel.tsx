@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { SharedMember, SharedPlan } from '../lib/groupPlans';
+import {
+  defaultSharedPlanAccessMode,
+  namedPlanParticipants,
+  sharedPlanAccessModes,
+  sharedPlanTriggerLabel,
+  type SharedPlanAccessMode,
+} from '../lib/sharedPlanPresentation';
 import './GroupPlanPanel.css';
 import './SharedPlanPanel.css';
 
@@ -35,8 +42,6 @@ interface SharedPlanPanelProps {
   onDismissError: () => void;
 }
 
-type AccessMode = 'claim' | 'join' | 'login';
-
 const FOCUSABLE_SELECTOR = [
   'a[href]',
   'button:not([disabled])',
@@ -53,7 +58,9 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 export function SharedPlanPanel(props: SharedPlanPanelProps) {
   const [dialog, setDialog] = useState<'create' | 'manage' | null>(null);
-  const [accessMode, setAccessMode] = useState<AccessMode>('join');
+  const [accessMode, setAccessMode] = useState<SharedPlanAccessMode>(() => (
+    defaultSharedPlanAccessMode(Boolean(props.claimToken))
+  ));
   const [title, setTitle] = useState('Weekend meetup');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -71,22 +78,28 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
   const [localError, setLocalError] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const autoOpenedPlanRef = useRef<string | null>(null);
   const dialogOpen = dialog !== null;
 
   const currentMember = props.plan?.currentMember ?? null;
   const owner = currentMember?.role === 'owner';
+
+  const planParticipants = useMemo(() => {
+    return namedPlanParticipants(props.plan?.participants || []);
+  }, [props.plan]);
+
   const availableParticipants = useMemo(() => {
     if (!props.plan || !owner) return [];
     const assigned = new Set(props.plan.members.map((member) => member.participantId).filter(Boolean));
     return props.plan.participants.filter((participant) => participant.name.trim() && !assigned.has(participant.id));
   }, [owner, props.plan]);
-  const availableAccessModes = useMemo<AccessMode[]>(() => [
-    ...(props.claimToken ? ['claim' as const] : []),
-    ...(props.plan?.joiningEnabled ? ['join' as const] : []),
-    'login',
-  ], [props.claimToken, props.plan?.joiningEnabled]);
+
+  const availableAccessModes = useMemo(() => sharedPlanAccessModes(
+    Boolean(props.claimToken),
+    Boolean(props.plan?.joiningEnabled),
+  ), [props.claimToken, props.plan?.joiningEnabled]);
 
   const planUrl = useMemo(() => {
     const url = new URL(window.location.href);
@@ -101,7 +114,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
   useEffect(() => {
     if (!props.plan || currentMember || autoOpenedPlanRef.current === props.plan.id) return;
     autoOpenedPlanRef.current = props.plan.id;
-    setAccessMode(props.claimToken ? 'claim' : props.plan.joiningEnabled ? 'join' : 'login');
+    setAccessMode(defaultSharedPlanAccessMode(Boolean(props.claimToken)));
     setDialog('manage');
   }, [currentMember, props.claimToken, props.plan]);
 
@@ -170,7 +183,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
     setDialog(null);
   }
 
-  function chooseAccessMode(nextMode: AccessMode) {
+  function chooseAccessMode(nextMode: SharedPlanAccessMode) {
     setAccessMode(nextMode);
     setLocalError('');
     props.onDismissError();
@@ -191,7 +204,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
         ? tabs.length - 1
         : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
     const nextTab = tabs[nextIndex];
-    chooseAccessMode(nextTab.dataset.accessMode as AccessMode);
+    chooseAccessMode(nextTab.dataset.accessMode as SharedPlanAccessMode);
     nextTab.focus();
   }
 
@@ -254,11 +267,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
     ? props.busy ? 'Loading shared plan…' : 'Shared plan unavailable'
     : !props.plan
       ? 'Share'
-      : owner
-        ? 'Manage'
-        : currentMember
-          ? 'My route'
-          : 'Join';
+      : sharedPlanTriggerLabel(currentMember);
 
   const combinedError = localError || props.error;
   const isAccessDialog = dialog === 'manage' && Boolean(props.plan) && !currentMember;
@@ -321,28 +330,60 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
                     <p className="group-hint">Anyone with this link can view names and locations. Prefer MRT stations or approximate locations over home addresses.</p>
                   </>
                 ) : (
-                  <p className="group-dialog-copy">Join to add your route, or sign in to update one you already created.</p>
+                  <p className="group-dialog-copy">Select your name to sign in and update your route, or join as a new participant.</p>
                 )}
 
                 {!currentMember ? (
                   <div className="group-owner-tools group-access-tools">
                     <div className="group-access-tabs" role="tablist" aria-label="Plan access options">
                       {props.claimToken ? <button id="group-access-tab-claim" data-access-mode="claim" type="button" role="tab" aria-controls="group-access-panel" aria-selected={accessMode === 'claim'} tabIndex={accessMode === 'claim' ? 0 : -1} className={accessMode === 'claim' ? 'is-active' : ''} onKeyDown={handleAccessTabKeyDown} onClick={() => chooseAccessMode('claim')}>Claim my route</button> : null}
-                      {props.plan.joiningEnabled ? <button id="group-access-tab-join" data-access-mode="join" type="button" role="tab" aria-controls="group-access-panel" aria-selected={accessMode === 'join'} tabIndex={accessMode === 'join' ? 0 : -1} className={accessMode === 'join' ? 'is-active' : ''} onKeyDown={handleAccessTabKeyDown} onClick={() => chooseAccessMode('join')}>I’m new here</button> : null}
+                      {props.plan.joiningEnabled ? <button id="group-access-tab-join" data-access-mode="join" type="button" role="tab" aria-controls="group-access-panel" aria-selected={accessMode === 'join'} tabIndex={accessMode === 'join' ? 0 : -1} className={accessMode === 'join' ? 'is-active' : ''} onKeyDown={handleAccessTabKeyDown} onClick={() => chooseAccessMode('join')}>I'm new here</button> : null}
                       <button id="group-access-tab-login" data-access-mode="login" type="button" role="tab" aria-controls="group-access-panel" aria-selected={accessMode === 'login'} tabIndex={accessMode === 'login' ? 0 : -1} className={accessMode === 'login' ? 'is-active' : ''} onKeyDown={handleAccessTabKeyDown} onClick={() => chooseAccessMode('login')}>Sign in</button>
                     </div>
                     <form id="group-access-panel" className="group-add-member group-access-form" role="tabpanel" aria-labelledby={`group-access-tab-${accessMode}`} onSubmit={(event) => void submitAccess(event).catch(() => undefined)}>
-                      <h3>{accessMode === 'claim' ? 'Claim your listed route' : accessMode === 'join' ? 'Join as a new person' : 'Welcome back'}</h3>
-                      <p>{accessMode === 'claim' ? 'This personal link connects your login to the route the organiser created for you.' : accessMode === 'join' ? 'We’ll add one new route under your name.' : 'Use the name and password you chose for this plan.'}</p>
+                      <h3>{accessMode === 'claim' ? 'Claim your listed route' : accessMode === 'join' ? 'Join as a new person' : 'Welcome back!'}</h3>
+                      <p>{accessMode === 'claim' ? 'This personal link connects your login to the route the organiser created for you.' : accessMode === 'join' ? 'We’ll add one new route under your name.' : 'Select your name below or type it in, then enter your password.'}</p>
+
+                      {(accessMode === 'login' || accessMode === 'claim') && planParticipants.length > 0 ? (
+                        <div className="group-participant-picker">
+                          <span className="group-picker-label">
+                            {accessMode === 'claim' ? 'Which listed route is yours?' : 'Who are you in this plan?'}
+                          </span>
+                          <div className="group-participant-chips" role="group" aria-label="People in this plan">
+                            {planParticipants.map((p) => {
+                              const isSelected = username.trim().toLowerCase() === p.name.toLowerCase();
+                              return (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  className={`group-participant-chip${isSelected ? ' is-selected' : ''}`}
+                                  aria-pressed={isSelected}
+                                  onClick={() => {
+                                    setUsername(p.name);
+                                    window.requestAnimationFrame(() => passwordInputRef.current?.focus());
+                                  }}
+                                >
+                                  <span className="group-chip-initial" aria-hidden="true">
+                                    {p.name.trim().charAt(0).toUpperCase()}
+                                  </span>
+                                  <span className="group-chip-name">{p.name}</span>
+                                  {isSelected ? <span className="group-chip-check" aria-hidden="true">✓</span> : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : null}
+
                       <Field label="Name in this plan"><input autoComplete="username" required maxLength={80} value={username} onChange={(event) => setUsername(event.target.value)} /></Field>
-                      <Field label="Password"><input type="password" autoComplete={accessMode === 'login' ? 'current-password' : 'new-password'} minLength={6} required value={accessPassword} onChange={(event) => setAccessPassword(event.target.value)} /></Field>
+                      <Field label="Password"><input ref={passwordInputRef} type="password" autoComplete={accessMode === 'login' ? 'current-password' : 'new-password'} minLength={6} required value={accessPassword} onChange={(event) => setAccessPassword(event.target.value)} /></Field>
                       {accessMode !== 'login' ? <Field label="Confirm password"><input type="password" autoComplete="new-password" minLength={6} required value={accessPasswordConfirmation} onChange={(event) => setAccessPasswordConfirmation(event.target.value)} /></Field> : null}
                       {combinedError ? <p className="group-error" role="alert">{combinedError}</p> : null}
-                      <button className="group-primary" type="submit" disabled={props.busy}>{props.busy ? 'Please wait…' : accessMode === 'claim' ? 'Claim route and continue' : accessMode === 'join' ? 'Join plan' : 'Sign in'}</button>
+                      <button className="group-primary" type="submit" disabled={props.busy}>{props.busy ? 'Please wait…' : accessMode === 'claim' ? 'Claim route and continue' : accessMode === 'join' ? 'Join plan' : 'Sign in to my route'}</button>
                     </form>
                     {!props.plan.joiningEnabled && !props.claimToken ? <p className="group-hint">The owner has closed new joining. Existing members can still sign in.</p> : null}
                     <details className="group-owner-login">
-                      <summary>Are you the plan owner?</summary>
+                      <summary>Are you the plan owner? Sign in as host</summary>
                       <form className="group-add-member" onSubmit={(event) => void submitOwnerLogin(event).catch(() => undefined)}>
                         <Field label="Owner email"><input type="email" autoComplete="email" required value={ownerEmail} onChange={(event) => setOwnerEmail(event.target.value)} /></Field>
                         <Field label="Password"><input type="password" autoComplete="current-password" minLength={6} required value={ownerPassword} onChange={(event) => setOwnerPassword(event.target.value)} /></Field>

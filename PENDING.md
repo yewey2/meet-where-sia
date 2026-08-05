@@ -8,7 +8,7 @@ Check items off as they are completed.
 ## 1. Login & shared-plan UX
 
 ### 1a. Default access tab should be "Sign in", not "I'm new here"
-**Status:** Incomplete.  
+**Status:** Done.
 `SharedPlanPanel.tsx` line 56 initialises `accessMode` to `'join'`, and line 122
 picks `join` as the default when a plan has joining enabled. Most returning
 visitors land on a plan link already knowing who they are — the default tab
@@ -16,21 +16,21 @@ should be `login`, with `join` and `claim` still available. Change the fallback
 order so `login` is always tried first unless a claim token is present.
 
 ### 1b. "Who are you?" chip picker only appears on the Sign-in tab
-**Status:** Incomplete.  
+**Status:** Done.
 The participant chip picker (`group-participant-chips`) was added for `accessMode === 'login'`
 only. The same quick-select chips would also help on the `claim` tab, where the
 person needs to identify which listed route is theirs.
 
 ### 1c. Name field should auto-fill when a chip is tapped (already done for login)
-**Status:** Done for `login` tab. Verify `claim` tab also sets `username` via
-the chip click handler if chips are shown there (see 1b above).
+**Status:** Done for the `login` and `claim` tabs. Both use the same chip click
+handler and move focus to the password field after filling the selected name.
 
 ### 1d. "Your route" badge visual styling
 **Status:** Done in `ParticipantCard`. Verify `.current-user-badge` has distinct,
 readable styling in both light and dark modes (see CSS polish tasks in §6).
 
 ### 1e. Login dialog: no way to see who's currently signed in at-a-glance
-**Status:** Partially done.  
+**Status:** Done.
 The button label cycles through "Share / Manage / My route / Join" but the user
 cannot see their own name until they open the dialog. The button (or a small
 tooltip/sub-label) should surface the signed-in participant name, e.g.
@@ -215,7 +215,7 @@ rules may be missing or minimal — verify in `main.css` / component CSS files:
   `.rail-objective-guidance` (App.tsx)
 
 ### 6b. `SharedPlanPanel.css` is nearly empty (989 bytes)
-**Status:** Not started.  
+**Status:** Done.
 Nearly all shared-plan panel styles live in `GroupPlanPanel.css`. The new chip
 and badge styles should be added in a coherent, organised way — either to
 `GroupPlanPanel.css` or a dedicated section in `SharedPlanPanel.css`.
@@ -242,10 +242,9 @@ ready: Dhoby Ghaut is the recommended meeting station."
 ## 8. Tests
 
 ### 8a. SharedPlanPanel login chip test
-**Status:** Not started.  
-No unit/integration test covers the chip quick-select flow added in the last
-session. Add a test (or extend the plans test file) to verify that clicking a
-participant chip sets the username field.
+**Status:** Done.
+`shared-plan-presentation.test.js` covers access-mode priority, the canonical
+participant choices used by chip selection, and signed-in trigger labels.
 
 ### 8b. `isCurrentUser` badge test
 **Status:** Not started.  
