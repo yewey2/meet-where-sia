@@ -1,4 +1,5 @@
 import { OPERATIONAL_STATION_FALLBACKS } from './stationFallbacks.mjs';
+import { stationCodesForName } from './stationCodes.mjs';
 
 const STATION_DATASET_ID = 'd_b39d3a0871985372d7e1637193335da5';
 const HAWKER_DATASET_ID = 'd_4a086da0a5553be1d89383cd90d07ecd';
@@ -365,7 +366,10 @@ export async function loadStations() {
   );
   const geojson = await datasetResponse.json();
   const stationData = supplementOperationalStations(aggregateStationExits(geojson));
-  const { stations } = stationData;
+  const stations = stationData.stations.map((station) => ({
+    ...station,
+    codes: stationCodesForName(station.name),
+  }));
 
   if (stations.length < 20) {
     throw new Error('The station dataset contained too few valid stations.');

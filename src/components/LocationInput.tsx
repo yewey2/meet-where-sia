@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -15,6 +16,11 @@ import {
   getGoogleMapsApiKey,
   loadGoogleMaps,
 } from '../lib/googleMaps';
+import {
+  buildStationSearchIndex,
+  formatStationLabel,
+  searchStations,
+} from '../lib/stations';
 import { CheckIcon, SearchIcon } from './Icons';
 
 interface LocationInputProps {
@@ -45,17 +51,6 @@ interface StationSuggestionItem {
 
 type SuggestionItem = GoogleSuggestionItem | StationSuggestionItem;
 
-function stationMatches(query: string, station: MrtStation): boolean {
-  const words = query
-    .toLowerCase()
-    .replace(/\b(?:mrt|lrt|station)\b/g, '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  const name = station.name.toLowerCase();
-  return words.length > 0 && words.every((word) => name.includes(word));
-}
-
 export function LocationInput({
   label,
   value,
@@ -76,6 +71,10 @@ export function LocationInput({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [selectionError, setSelectionError] = useState('');
   const hasApiKey = Boolean(getGoogleMapsApiKey());
+  const stationSearchIndex = useMemo(
+    () => buildStationSearchIndex(stations),
+    [stations],
+  );
 
   useEffect(() => {
     if (
@@ -89,15 +88,16 @@ export function LocationInput({
     }
 
     const currentRequestId = ++requestIdRef.current;
-    const stationSuggestions: StationSuggestionItem[] = stations
-      .filter((station) => stationMatches(value.query, station))
-      .slice(0, 5)
+    const stationSuggestions: StationSuggestionItem[] = searchStations(
+      stationSearchIndex,
+      value.query,
+    )
       .map((station) => ({
         source: 'station',
         station,
-        primary: station.name,
+        primary: formatStationLabel(station),
         secondary: `Official ${station.network} station`,
-        fullText: `${station.name} ${station.network}`,
+        fullText: formatStationLabel(station),
       }));
 
     if (!hasApiKey) {
@@ -107,6 +107,11 @@ export function LocationInput({
       setIsLoading(false);
       return;
     }
+
+    setSuggestions(stationSuggestions);
+    setActiveIndex(-1);
+    setIsOpen(stationSuggestions.length > 0);
+    setIsLoading(false);
 
     const timer = window.setTimeout(async () => {
       setIsLoading(true);
@@ -157,8 +162,8 @@ export function LocationInput({
         setIsOpen(nextSuggestions.length > 0);
       } catch (requestError) {
         if (requestIdRef.current !== currentRequestId) return;
-        setSuggestions([]);
-        setIsOpen(false);
+        setSuggestions(stationSuggestions);
+        setIsOpen(stationSuggestions.length > 0);
         setSelectionError(
           requestError instanceof Error
             ? requestError.message
@@ -172,7 +177,7 @@ export function LocationInput({
     }, 320);
 
     return () => window.clearTimeout(timer);
-  }, [disabled, hasApiKey, stations, value.query, value.status]);
+  }, [disabled, hasApiKey, stationSearchIndex, value.query, value.status]);
 
   useEffect(
     () => () => {

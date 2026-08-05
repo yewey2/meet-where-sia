@@ -39,6 +39,7 @@ import {
   parseSingaporeCoordinate,
   rankStationsByTravelTime,
 } from './lib/railGraph';
+import { formatStationLabel } from './lib/stations';
 import { useSharedPlan } from './lib/useSharedPlan';
 import {
   normalizeParticipantColors,
@@ -251,8 +252,8 @@ async function resolveField(
   const localStation = findLocalStation(location.query, stations);
   if (localStation) {
     return {
-      query: `${localStation.name} ${localStation.network}`,
-      label: `${localStation.name} ${localStation.network}`,
+      query: formatStationLabel(localStation),
+      label: formatStationLabel(localStation),
       placeId: `station:${localStation.id}`,
       lat: localStation.lat,
       lng: localStation.lng,
@@ -525,7 +526,7 @@ export default function App() {
         ...current,
         lat: station.lat,
         lng: station.lng,
-        title: `${station.name} ${station.network}`,
+        title: formatStationLabel(station),
         station,
         totalKm: station.totalKm,
         averageKm: station.averageKm,
@@ -647,7 +648,7 @@ export default function App() {
           objective: calculationRailObjective,
           lat: selected.lat,
           lng: selected.lng,
-          title: `${selected.name} ${selected.network}`,
+          title: formatStationLabel(selected),
           address: '',
           station: selected,
           alternatives: ranked.slice(0, 4),

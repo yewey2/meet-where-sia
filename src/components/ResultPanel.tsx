@@ -13,6 +13,7 @@ import type {
 import { haversineKm } from '../lib/centroid';
 import { reverseRailRouteSteps } from '../lib/railGraph';
 import { meetingDirectionsUrl, meetingPointMapsUrl } from '../lib/directions';
+import { formatStationLabel } from '../lib/stations';
 import {
   summarizeParticipantJourneys,
   type ParticipantJourneySummary,
@@ -204,7 +205,7 @@ function RailJourneyLeg({
       ) : (
         <p className="journey-route">
           No train needed—this leg starts and ends at{' '}
-          <strong>{result.station.name} {result.station.network}</strong>.
+          <strong>{formatStationLabel(result.station)}</strong>.
         </p>
       )}
       {origin ? <DirectionsLink origin={origin} result={result} afterMeetup={afterMeetup} /> : null}
@@ -620,7 +621,7 @@ export function ResultPanel({
                   />
                   <span className="alternative-rank">{index + 1}</span>
                   <span className="alternative-name">
-                    <strong>{station.name}</strong>
+                    <strong>{formatStationLabel(station)}</strong>
                     <small>
                       {station.lineCodes.join('/')} · {objectiveMetric(station, result.objective)}
                     </small>

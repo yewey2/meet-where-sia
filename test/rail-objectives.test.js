@@ -79,6 +79,20 @@ test('distance outside endpoint bounds is zero inside and measured from the near
   assert.equal(distanceOutsideEndpointBoundsKm({ lat: 3, lng: 3 }, points), Math.sqrt(2));
 });
 
+test('local stations resolve by name, individual code, or full interchange label', async () => {
+  const { findLocalStation } = await loadRailGraph();
+  const stations = [
+    { id: 'eunos', name: 'Eunos', codes: ['EW7'] },
+    { id: 'bishan', name: 'Bishan', codes: ['NS17', 'CC15'] },
+  ];
+
+  assert.equal(findLocalStation('Eunos MRT station', stations)?.id, 'eunos');
+  assert.equal(findLocalStation('EW7', stations)?.id, 'eunos');
+  assert.equal(findLocalStation('EW7 Eunos', stations)?.id, 'eunos');
+  assert.equal(findLocalStation('CC15 Bishan', stations)?.id, 'bishan');
+  assert.equal(findLocalStation('NS17/CC15 Bishan', stations)?.id, 'bishan');
+});
+
 test('rail paths collapse consecutive stops into rides separated by named transfers', async () => {
   const { summarizeRailPath } = await loadRailGraph();
   const stations = [

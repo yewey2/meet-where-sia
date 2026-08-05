@@ -216,6 +216,11 @@ function nodeKey(stationId: string, lineCode: string): string {
   return `${stationId}|${lineCode}`;
 }
 
+function stationDisplayName(station: MrtStation): string {
+  const codes = station.codes?.join('/') || '';
+  return codes ? `${codes} ${station.name}` : station.name;
+}
+
 function parseNodeKey(key: string): { stationId: string; lineCode: string } {
   const separator = key.lastIndexOf('|');
   return {
@@ -402,7 +407,9 @@ export function summarizeRailPath(
   path: GraphPathSegment[],
   stations: MrtStation[],
 ): RailRouteStep[] {
-  const stationNames = new Map(stations.map((station) => [station.id, station.name]));
+  const stationNames = new Map(
+    stations.map((station) => [station.id, stationDisplayName(station)]),
+  );
   const nameOf = (stationId: string) => stationNames.get(stationId) || stationId;
   const steps: RailRouteStep[] = [];
 
@@ -472,7 +479,16 @@ export function findLocalStation(
 ): MrtStation | undefined {
   const normalized = normalizeStationName(query);
   if (!normalized) return undefined;
-  return stations.find((station) => normalizeStationName(station.name) === normalized);
+  return stations.find(
+    (station) =>
+      normalizeStationName(station.name) === normalized ||
+      normalizeStationName(stationDisplayName(station)) === normalized ||
+      (station.codes || []).some(
+        (code) =>
+          normalizeStationName(code) === normalized ||
+          normalizeStationName(`${code} ${station.name}`) === normalized,
+      ),
+  );
 }
 
 export function parseSingaporeCoordinate(query: string): Coordinate | undefined {

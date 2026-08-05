@@ -59,6 +59,7 @@ export interface MrtStation extends Coordinate {
   id: string;
   name: string;
   network: 'MRT' | 'LRT';
+  codes: string[];
   exitCount: number;
 }
 

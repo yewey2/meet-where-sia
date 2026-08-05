@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchNearbyPlaces } from '../lib/api';
+import { formatStationLabel } from '../lib/stations';
 import type {
   NearbyCategory,
   NearbyPlacesPayload,
@@ -68,7 +69,7 @@ export function NearbyDiscovery({ result }: { result: RailResult }) {
   const [payload, setPayload] = useState<NearbyPlacesPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const stationLabel = `${result.station.name} ${result.station.network}`;
+  const stationLabel = formatStationLabel(result.station);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -115,7 +116,7 @@ export function NearbyDiscovery({ result }: { result: RailResult }) {
           <div className="nearby-kicker">
             <SparkIcon /> Make a plan
           </div>
-          <h3 id="nearby-title">What’s near {result.station.name}?</h3>
+          <h3 id="nearby-title">What’s near {stationLabel}?</h3>
         </div>
         <span className="nearby-radius">Within {SEARCH_RADIUS_KM} km</span>
       </div>
@@ -188,7 +189,7 @@ export function NearbyDiscovery({ result }: { result: RailResult }) {
           target="_blank"
           rel="noreferrer"
         >
-          {category.ctaLabel} near {result.station.name}
+          {category.ctaLabel} near {stationLabel}
           <ArrowUpRightIcon />
         </a>
       </div>
