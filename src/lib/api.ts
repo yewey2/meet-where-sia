@@ -25,7 +25,7 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
       'error' in payload &&
       typeof payload.error === 'string'
         ? payload.error
-        : `Request failed with status ${response.status}.`;
+        : `The service returned status ${response.status}. Try again in a moment.`;
     throw new Error(message);
   }
 

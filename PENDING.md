@@ -188,7 +188,7 @@ illustration or short prompt (e.g. "Add at least two locations and tap Find")
 would reduce confusion for first-time users.
 
 ### 5e. Error messages
-**Status:** Not started.  
+**Status:** Done.
 Current error strings (e.g. in `resolveField`) are functional but terse. Review
 all user-facing error messages for actionability: tell the user what to do, not
 just what went wrong.

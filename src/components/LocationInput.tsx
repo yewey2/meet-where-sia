@@ -21,6 +21,7 @@ import {
   formatStationLabel,
   searchStations,
 } from '../lib/stations';
+import { actionableErrorMessage } from '../lib/errorMessages';
 import { CheckIcon, SearchIcon } from './Icons';
 
 interface LocationInputProps {
@@ -164,11 +165,11 @@ export function LocationInput({
         if (requestIdRef.current !== currentRequestId) return;
         setSuggestions(stationSuggestions);
         setIsOpen(stationSuggestions.length > 0);
-        setSelectionError(
-          requestError instanceof Error
-            ? requestError.message
-            : 'Google place suggestions are unavailable.',
-        );
+        setSelectionError(actionableErrorMessage(
+          requestError,
+          'Place suggestions are unavailable',
+          'Enter an MRT/LRT station, landmark or Singapore coordinates instead.',
+        ));
       } finally {
         if (requestIdRef.current === currentRequestId) {
           setIsLoading(false);
@@ -212,7 +213,7 @@ export function LocationInput({
       });
 
       if (!place.location) {
-        throw new Error('That result did not include map coordinates.');
+        throw new Error('That result did not include a location');
       }
 
       onChange({
@@ -229,11 +230,11 @@ export function LocationInput({
       setIsOpen(false);
       setActiveIndex(-1);
     } catch (requestError) {
-      setSelectionError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Could not resolve that place.',
-      );
+      setSelectionError(actionableErrorMessage(
+        requestError,
+        'We could not use that place',
+        'Choose another suggestion or enter an MRT/LRT station.',
+      ));
     } finally {
       setIsLoading(false);
     }

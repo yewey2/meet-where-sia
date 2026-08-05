@@ -463,7 +463,7 @@ export function ResultPanel({
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
-      setShareStatus('Could not share just now');
+      setShareStatus('Share failed—open Maps to copy the link');
     }
   }
 

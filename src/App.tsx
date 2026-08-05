@@ -49,6 +49,7 @@ import {
   calculationChangePolicy,
   shouldApplySharedCalculationPreferences,
 } from './lib/calculationPreferences';
+import { actionableErrorMessage } from './lib/errorMessages';
 import type { SharedPlan } from './lib/groupPlans';
 import type {
   EndpointPoint,
@@ -245,7 +246,7 @@ async function resolveField(
     throw new FieldResolutionError(
       participant.id,
       field,
-      `${displayName} needs an ${field === 'start' ? 'starting' : 'ending'} point.`,
+      `Enter ${displayName}’s ${field === 'start' ? 'starting point' : 'destination after the meetup'} before calculating.`,
     );
   }
 
@@ -279,7 +280,7 @@ async function resolveField(
     throw new FieldResolutionError(
       participant.id,
       field,
-      `${displayName}: place search is currently limited to MRT/LRT station names.`,
+      `${displayName}: enter an MRT/LRT station name or code, or Singapore coordinates such as “1.3000, 103.8000”.`,
     );
   }
 
@@ -289,9 +290,11 @@ async function resolveField(
     throw new FieldResolutionError(
       participant.id,
       field,
-      `${displayName} ${field}: ${
-        error instanceof Error ? error.message : 'location could not be resolved.'
-      }`,
+      `${displayName} ${field === 'start' ? 'starting point' : 'destination'}: ${actionableErrorMessage(
+        error,
+        'We could not find that place',
+        'Try an MRT/LRT station, landmark or 6-digit postal code.',
+      )}`,
     );
   }
 }
@@ -399,9 +402,11 @@ export default function App() {
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         setStationLoadError(
-          error instanceof Error
-            ? error.message
-            : 'The official rail station list could not be loaded.',
+          actionableErrorMessage(
+            error,
+            'The rail station list could not be loaded',
+            'Try again, or use Direct distance mode for now.',
+          ),
         );
       });
 
@@ -642,7 +647,7 @@ export default function App() {
 
       const points = buildEndpointPoints(resolvedParticipants);
       if (points.length === 0) {
-        throw new Error('Add at least one valid starting point.');
+        throw new Error('Add a valid starting point, then try the calculation again.');
       }
 
       let nextResult: MeetingResult;
@@ -670,7 +675,7 @@ export default function App() {
         const selected = ranked[0];
 
         if (!selected) {
-          throw new Error('No connected MRT/LRT station could be compared.');
+          throw new Error('No connected MRT/LRT station could be compared. Try different locations or switch to Direct distance.');
         }
 
         nextResult = {
@@ -722,7 +727,7 @@ export default function App() {
       setGlobalError(
         error instanceof Error
           ? error.message
-          : 'The meeting point could not be calculated.',
+          : 'The meeting point could not be calculated. Check the locations and try again.',
       );
     } finally {
       setIsCalculating(false);
@@ -1010,7 +1015,7 @@ export default function App() {
 
           {globalError ? (
             <div className="global-error" role="alert">
-              <strong>Check the highlighted location</strong>
+              <strong>We couldn’t finish the calculation</strong>
               <span>{globalError}</span>
             </div>
           ) : null}
