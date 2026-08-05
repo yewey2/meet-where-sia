@@ -853,7 +853,7 @@ export default function App() {
           <div className="planner-intro">
             <div className="eyebrow"><SparkIcon /> Made for Singapore</div>
             <h1 id="planner-title">Meet Where Sia?</h1>
-            <p>Add where everyone is coming from. We’ll find a fair, practical spot.</p>
+            <p>Add everyone’s route. We’ll compare the journeys and find a meeting spot that feels fair.</p>
           </div>
 
           <div className="people-section">
@@ -862,8 +862,8 @@ export default function App() {
                 <div className="section-label"><UsersIcon /> Who’s meeting?</div>
                 <p>{participants.length} {participants.length === 1 ? 'person' : 'people'} added</p>
               </div>
-              <button type="button" className="text-button" disabled={isCalculating || !canManagePlan} onClick={loadExample}>
-                Use sample
+              <button type="button" className="text-button sample-plan-button" disabled={isCalculating || !canManagePlan} onClick={loadExample}>
+                <SparkIcon /> Try an example
               </button>
             </div>
 

@@ -119,13 +119,13 @@ The checkbox is functional but visually plain. Consider a styled toggle switch
 that is more obviously interactive and less likely to be overlooked.
 
 ### 4c. Add-person button spacing
-**Status:** Not started.  
+**Status:** Done.
 `.add-person-button` sits flush below the last card with no visual breathing
 room. Add adequate margin and a subtle dashed-border affordance to hint it is an
 action rather than a result row.
 
 ### 4d. Calculate button prominence
-**Status:** Not started.  
+**Status:** Done.
 The `.calculate-button` should be the most visually dominant element on the
 planner panel. Verify it uses the primary brand colour with a clear hover/active
 state, adequate padding, and a smooth loading spinner transition.
@@ -136,26 +136,26 @@ The native `<details>` element has no animation. Add a CSS transition for the
 content expanding (height or clip-path animation) so it does not jank open.
 
 ### 4f. Result panel — top-ranked station card hierarchy
-**Status:** Not started.  
+**Status:** Done.
 The recommended station should have clear visual hierarchy over the alternatives
 list — larger type, stronger background, prominent action buttons. Review
 `ResultPanel.tsx` for consistent use of spacing, font sizes, and colour tokens.
 
 ### 4g. Mobile / responsive layout
-**Status:** Not audited.  
+**Status:** Done.
 The two-column `planner-layout` / `results-column` layout needs a responsive
 breakpoint audit. On narrow screens the planner panel and results aside should
 stack vertically, and the fairness disclosure and participant cards should not
 overflow horizontally.
 
 ### 4h. Dark-mode consistency
-**Status:** Not audited.  
+**Status:** Done.
 `ThemeToggle` is present but a full dark-mode pass has not been done for the
 new elements added in the last session: `.current-user-badge`, `.group-participant-chips`,
 `.group-participant-chip`, `.rail-objective-disclosure`, `.rail-objective-guidance`.
 
 ### 4i. Focus-visible ring
-**Status:** Not audited.  
+**Status:** Done.
 Verify all interactive elements (buttons, inputs, links, `<details>/<summary>`)
 have a visible focus ring that meets WCAG 2.4.11 (at least 2 px, contrasting
 colour) in both light and dark modes.
@@ -165,7 +165,7 @@ colour) in both light and dark modes.
 ## 5. Copy & UX writing pass (UX Writer pass)
 
 ### 5a. Planner intro copy
-**Status:** Not started.  
+**Status:** Done.
 Current: "Add where everyone is coming from. We'll find a fair, practical spot."
 Needs a UX-writer pass for clarity, warmth, and Singapore-appropriate voice.
 
@@ -182,7 +182,7 @@ paragraphs, error messages — need a UX-writer review pass for consistency of
 tone and brevity.
 
 ### 5d. Empty/loading states
-**Status:** Not started.  
+**Status:** Done.
 The result aside shows nothing until a calculation runs. An empty-state
 illustration or short prompt (e.g. "Add at least two locations and tap Find") 
 would reduce confusion for first-time users.
@@ -194,7 +194,7 @@ all user-facing error messages for actionability: tell the user what to do, not
 just what went wrong.
 
 ### 5f. "Use sample" button discoverability
-**Status:** Not started.  
+**Status:** Done.
 New users may not notice "Use sample" — it is small and sits beside a less
 prominent label. Consider moving it into the empty participant state or adding
 a first-use prompt.
@@ -231,7 +231,7 @@ management, `::backdrop`, and Escape handling. Consider migrating to native
 `<dialog>` once browser support requirements are confirmed.
 
 ### 7b. Announce live results to screen readers
-**Status:** Not started.  
+**Status:** Done.
 When calculation completes, the result panel updates but there is no `aria-live`
 announcement. Add a visually-hidden live region that announces e.g. "Result
 ready: Dhoby Ghaut is the recommended meeting station."

@@ -1879,6 +1879,26 @@ body {
   text-decoration: none;
 }
 
+.sample-plan-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--control-line);
+  background: var(--surface);
+  box-shadow: 0 3px 10px rgb(25 27 35 / 7%);
+}
+
+.sample-plan-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.sample-plan-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .participant-list {
   gap: 10px;
   margin-top: 10px;
