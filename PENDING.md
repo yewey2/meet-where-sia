@@ -91,7 +91,7 @@ coordinate or wait for that work to settle before implementing this item.
 ## 3. Station names & codes (separate agent work in progress)
 
 ### 3a. Full station label with line code (e.g. "EW7 Eunos")
-**Status:** In progress by a separate agent.  
+**Status:** Done.
 `formatStationLabel` in `src/lib/stations.ts` already prefixes line codes, and
 `railGraph.ts` test 53-55 confirms code search. Verify the updated station data
 (including codes like EW7, NS4, etc.) is wired through to:
@@ -100,9 +100,8 @@ coordinate or wait for that work to settle before implementing this item.
 - `MapPanel` marker tooltip labels
 
 ### 3b. Station search should match partial code ("EW" to all East-West stations)
-**Status:** Tests 54-55 pass for exact codes and acronyms. Confirm partial-prefix
-matching (e.g. "EW" returning EW1-EW33) works in the live autocomplete without
-flooding results.
+**Status:** Done. Partial line prefixes match the correct coded stations and the
+live autocomplete retains its five-result cap.
 
 ---
 

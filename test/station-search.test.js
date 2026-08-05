@@ -55,3 +55,20 @@ test('station search supports derived acronyms and common line descriptions', as
     ['compassvale', 'sengkang'],
   );
 });
+
+test('station search matches a line prefix without flooding autocomplete', async () => {
+  const { buildStationSearchIndex, searchStations } = await loadStationHelpers();
+  const stations = [
+    ...Array.from({ length: 8 }, (_, index) => ({
+      id: `ew-${index + 1}`,
+      name: `East West ${index + 1}`,
+      network: 'MRT',
+      codes: [`EW${index + 1}`],
+    })),
+    { id: 'ns-1', name: 'North South', network: 'MRT', codes: ['NS1'] },
+  ];
+
+  const matches = searchStations(buildStationSearchIndex(stations), 'EW');
+  assert.equal(matches.length, 5);
+  assert.ok(matches.every((station) => station.codes[0].startsWith('EW')));
+});

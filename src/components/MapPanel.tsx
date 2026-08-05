@@ -13,6 +13,7 @@ import {
   participantColorOption,
   type ParticipantColorOption,
 } from '../lib/participantColors';
+import { formatStationLabel } from '../lib/stations';
 
 interface MapPanelProps {
   points: EndpointPoint[];
@@ -313,15 +314,16 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
           .map((station, index) => ({ station, rank: index + 1 }))
           .filter(({ station }) => station.id !== result.station.id)
           .slice(0, 3)) {
+          const alternativeLabel = formatStationLabel(alternative);
           const marker = L.marker([alternative.lat, alternative.lng], {
-            alt: `Select rank ${rank}: ${alternative.name} ${alternative.network}`,
+            alt: `Select rank ${rank}: ${alternativeLabel}`,
             icon: leafletMarkerIcon('alternative', String(rank)),
             keyboard: false,
-            title: `Select ${alternative.name} ${alternative.network}`,
+            title: `Select ${alternativeLabel}`,
             zIndexOffset: 200,
           }).addTo(overlays);
           marker.bindTooltip(
-            `Select ${escapeHtml(alternative.name)} ${escapeHtml(alternative.network)}`,
+            `Select ${escapeHtml(alternativeLabel)}`,
             { direction: 'top', offset: [0, -14] },
           );
           marker.on('click', () => onSelectStation(alternative));
