@@ -4466,7 +4466,119 @@ button.alternative-row:focus-visible {
   white-space: nowrap;
 }
 
+.method-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.local-method-note {
+  flex: 0 0 auto;
+  max-width: 17rem;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.rail-objective-disclosure {
+  margin-top: 10px;
+  interpolate-size: allow-keywords;
+}
+
+.rail-objective-disclosure::details-content {
+  overflow-y: clip;
+  block-size: 0;
+  opacity: 0;
+  transition:
+    block-size 180ms ease,
+    content-visibility 180ms allow-discrete,
+    opacity 140ms ease;
+}
+
+.rail-objective-disclosure[open]::details-content {
+  block-size: auto;
+  opacity: 1;
+}
+
+.rail-objective-disclosure-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  list-style: none;
+}
+
+.rail-objective-disclosure-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.rail-objective-disclosure-trigger small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  text-align: right;
+}
+
+.rail-objective-disclosure-trigger::after {
+  flex: 0 0 auto;
+  color: var(--muted);
+  content: '⌄';
+  font-size: 16px;
+  transition: transform 160ms ease;
+}
+
+.rail-objective-disclosure[open] .rail-objective-disclosure-trigger::after {
+  transform: rotate(180deg);
+}
+
+.distance-mode-guidance {
+  display: grid;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 11px 11px 0;
+  background: var(--surface);
+}
+
+.distance-mode-guidance strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.distance-mode-guidance p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 @media (max-width: 600px) {
+  .method-panel-heading {
+    display: grid;
+  }
+
+  .local-method-note {
+    justify-self: start;
+    max-width: none;
+    text-align: left;
+  }
+
   .method-panel {
     padding: 13px 12px;
   }
@@ -4497,6 +4609,10 @@ button.alternative-row:focus-visible {
 
   .rail-objective-help {
     width: 100%;
+  }
+
+  .rail-objective-disclosure-trigger small {
+    max-width: 11rem;
   }
 
   .objective-help-dialog {

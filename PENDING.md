@@ -49,19 +49,19 @@ saved default in `loadSavedState`.
 `App.tsx` ~line 925.
 
 ### 2c. Distance mode has no equivalent objective disclosure
-**Status:** Not started.  
+**Status:** Done.
 When `mode === 'distance'` the geometric-median / arithmetic-mean distinction is
 invisible to the user. A one-line summary should appear (e.g. "Uses geographic
 midpoint — straight-line distance") so users know what they are getting. The
 advanced toggle can remain hidden; just surface the active algorithm name.
 
 ### 2d. Method panel copy is generic
-**Status:** Not started.  
+**Status:** Done.
 "Pick the fairness approach for this meetup." is vague. UX writer pass needed —
 see §5.
 
 ### 2e. Let shared-plan participants experiment with calculation settings
-**Status:** Planned; awaiting approval before implementation.  
+**Status:** Done.
 Logged-in participants currently cannot change the meeting mode or rail fairness
 goal because those controls use the owner-only `canManagePlan` permission. The
 lock should apply to people and plan administration, not to calculation tools:
@@ -132,7 +132,7 @@ planner panel. Verify it uses the primary brand colour with a clear hover/active
 state, adequate padding, and a smooth loading spinner transition.
 
 ### 4e. `<details>` fairness disclosure — open/close animation
-**Status:** Not started.  
+**Status:** Done.
 The native `<details>` element has no animation. Add a CSS transition for the
 content expanding (height or clip-path animation) so it does not jank open.
 
@@ -171,7 +171,7 @@ Current: "Add where everyone is coming from. We'll find a fair, practical spot."
 Needs a UX-writer pass for clarity, warmth, and Singapore-appropriate voice.
 
 ### 5b. Fairness selector labels and summaries
-**Status:** Not started.  
+**Status:** Done.
 The three rail objective labels ("Quickest overall", "Cap longest journey",
 "Equal travel time") and their `summary` strings should be reviewed for plain-
 language clarity. Avoid jargon like "minimax" leaking through.
@@ -205,8 +205,8 @@ a first-use prompt.
 ## 6. CSS / design tokens
 
 ### 6a. New CSS classes from last session need full styles
-**Status:** Incomplete. The following classes were added to JSX but their CSS
-rules may be missing or minimal — verify in `main.css` / component CSS files:
+**Status:** Done. The following classes now have responsive, theme-token-based
+styles in `styles.css` / component CSS files:
 - `.current-user-badge` (ParticipantCard)
 - `.is-current-user` modifier on `.participant-card`
 - `.group-participant-picker`, `.group-participant-chips`, `.group-participant-chip`,

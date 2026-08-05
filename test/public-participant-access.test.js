@@ -164,6 +164,7 @@ test('contributors can create and update only their own route', async () => {
     { type: 'addParticipant', participant: { ...baseParticipant, id: 'person_illegal_add' } },
     { type: 'removeParticipant', participantId: baseParticipant.id },
     { type: 'setMode', mode: 'distance' },
+    { type: 'setRailObjective', railObjective: 'evenness' },
     { type: 'renamePlan', title: 'Hijacked' },
     { type: 'setJoining', enabled: false },
   ]) {
