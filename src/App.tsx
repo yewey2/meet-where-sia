@@ -845,6 +845,10 @@ export default function App() {
                   canRemove={canManagePlan && participants.length > 1}
                   canEditName={!isCalculating && canManagePlan}
                   readOnly={isCalculating || !canEditParticipant(participant.id)}
+                  isCurrentUser={
+                    Boolean(currentSharedMember?.participantId) &&
+                    currentSharedMember?.participantId === participant.id
+                  }
                   onChange={updateParticipant}
                   onRemove={() => {
                     setParticipants((current) =>

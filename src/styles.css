@@ -4126,6 +4126,109 @@ button.alternative-row:focus-visible {
   border-width: 7px;
 }
 
+.participant-card.is-current-user {
+  border-color: color-mix(in srgb, var(--participant-dark) 48%, var(--line));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--participant-light) 32%, transparent);
+}
+
+.current-user-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  margin-left: 7px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--participant-dark);
+  background: var(--participant-light);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.participant-color-options {
+  transform-origin: top left;
+  animation: participant-color-pop 150ms ease-out both;
+}
+
+@keyframes participant-color-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.same-location-control input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.same-location-toggle {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 22px;
+  border: 1px solid var(--control-line);
+  border-radius: 999px;
+  background: var(--surface-alt);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.same-location-toggle::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--soft-muted);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+  content: '';
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.same-location-control input:checked + .same-location-toggle {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.same-location-control input:checked + .same-location-toggle::after {
+  background: var(--accent-fill);
+  transform: translateX(16px);
+}
+
+.same-location-control:has(input:focus-visible) .same-location-toggle {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.same-location-control:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.same-location-label {
+  line-height: 1.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .participant-color-options {
+    animation: none;
+  }
+
+  .same-location-toggle,
+  .same-location-toggle::after {
+    transition: none;
+  }
+}
+
 .station-comparison {
   margin: 18px 0 0;
   padding: 0;

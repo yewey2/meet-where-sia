@@ -26,8 +26,8 @@ person needs to identify which listed route is theirs.
 handler and move focus to the password field after filling the selected name.
 
 ### 1d. "Your route" badge visual styling
-**Status:** Done in `ParticipantCard`. Verify `.current-user-badge` has distinct,
-readable styling in both light and dark modes (see CSS polish tasks in §6).
+**Status:** Done. The assigned participant has a themed card outline, a readable
+`Your route` badge, and an accessible `(You)` card label.
 
 ### 1e. Login dialog: no way to see who's currently signed in at-a-glance
 **Status:** Done.
@@ -109,13 +109,13 @@ flooding results.
 ## 4. UI polish (UI Engineer pass)
 
 ### 4a. Participant card — colour picker UX
-**Status:** Not started.  
+**Status:** Done.
 The colour picker opens inline with no animation and no close-on-outside-click
 behaviour. It should close when the user clicks anywhere outside the picker panel.
 Add a subtle fade/slide-in animation.
 
 ### 4b. Participant card — "Different place after the meetup?" checkbox
-**Status:** Not started.  
+**Status:** Done.
 The checkbox is functional but visually plain. Consider a styled toggle switch
 that is more obviously interactive and less likely to be overlooked.
 
@@ -247,9 +247,8 @@ ready: Dhoby Ghaut is the recommended meeting station."
 participant choices used by chip selection, and signed-in trigger labels.
 
 ### 8b. `isCurrentUser` badge test
-**Status:** Not started.  
-No test verifies that `ParticipantCard` renders the `.current-user-badge` when
-`isCurrentUser` is true.
+**Status:** Done. `participant-presentation.test.js` covers the badge, card
+modifier, and accessible label for assigned and unassigned participants.
 
 ---
 

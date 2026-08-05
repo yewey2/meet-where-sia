@@ -1,9 +1,10 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { MrtStation, Participant } from '../types';
 import {
   PARTICIPANT_COLORS,
   participantColorOption,
 } from '../lib/participantColors';
+import { participantIdentityPresentation } from '../lib/participantPresentation';
 import { TrashIcon } from './Icons';
 import { LocationInput } from './LocationInput';
 
@@ -16,6 +17,7 @@ interface ParticipantCardProps {
   canEditName: boolean;
   readOnly: boolean;
   onRemove: () => void;
+  isCurrentUser?: boolean;
 }
 
 export function ParticipantCard({
@@ -27,8 +29,10 @@ export function ParticipantCard({
   onRemove,
   canEditName,
   readOnly,
+  isCurrentUser,
 }: ParticipantCardProps) {
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
   const displayName = participant.name.trim() || `Person ${index + 1}`;
   const namePlaceholder = index === 0 ? 'You' : `Friend ${index + 1}`;
   const selectedColor = participantColorOption(participant.color);
@@ -36,11 +40,37 @@ export function ParticipantCard({
     '--participant-light': selectedColor.light,
     '--participant-dark': selectedColor.dark,
   } as CSSProperties;
+  const identity = participantIdentityPresentation(index, displayName, Boolean(isCurrentUser));
+
+  useEffect(() => {
+    if (!colorPickerOpen) return;
+
+    function closeOnOutsidePress(event: PointerEvent) {
+      if (!colorPickerRef.current?.contains(event.target as Node)) {
+        setColorPickerOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setColorPickerOpen(false);
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePress, true);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePress, true);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [colorPickerOpen]);
+
+  useEffect(() => {
+    if (readOnly) setColorPickerOpen(false);
+  }, [readOnly]);
 
   return (
     <article
-      className="participant-card"
-      aria-label={`Person ${index + 1}: ${displayName}`}
+      className={identity.className}
+      aria-label={identity.ariaLabel}
       style={participantStyle}
     >
       <div className="participant-heading">
@@ -48,7 +78,10 @@ export function ParticipantCard({
           {index + 1}
         </div>
         <div className="participant-name-field">
-          <label htmlFor={`${participant.id}-name`}>Name <span>(optional)</span></label>
+          <label htmlFor={`${participant.id}-name`}>
+            Name <span>(optional)</span>
+            {identity.badge ? <span className="current-user-badge">{identity.badge}</span> : null}
+          </label>
           <input
             id={`${participant.id}-name`}
             disabled={!canEditName}
@@ -72,7 +105,7 @@ export function ParticipantCard({
         </button>
       </div>
 
-      <div className="participant-color-picker">
+      <div className="participant-color-picker" ref={colorPickerRef}>
         <button
           type="button"
           className="participant-color-trigger"
@@ -171,7 +204,8 @@ export function ParticipantCard({
                 });
               }}
             />
-            <span>Different place after the meetup?</span>
+            <span className="same-location-toggle" aria-hidden="true" />
+            <span className="same-location-label">Different place after the meetup?</span>
           </label>
 
           {!participant.sameAsStart ? (
