@@ -176,7 +176,7 @@ The three rail objective labels ("Quickest overall", "Cap longest journey",
 language clarity. Avoid jargon like "minimax" leaking through.
 
 ### 5c. Shared-plan dialog copy
-**Status:** Not started.  
+**Status:** Done.
 All strings inside `SharedPlanPanel` — kicker lines, button labels, hint
 paragraphs, error messages — need a UX-writer review pass for consistency of
 tone and brevity.
@@ -224,7 +224,7 @@ and badge styles should be added in a coherent, organised way — either to
 ## 7. Accessibility
 
 ### 7a. `<dialog>` element usage
-**Status:** Not started.  
+**Status:** Done.
 `SharedPlanPanel` uses a `<section role="dialog">` inside a backdrop div rather
 than the native `<dialog>` element. Native `<dialog>` provides built-in focus
 management, `::backdrop`, and Escape handling. Consider migrating to native

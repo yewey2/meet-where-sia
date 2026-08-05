@@ -52,6 +52,15 @@
   font-size: 12px;
 }
 
+.group-dialog {
+  margin: auto;
+}
+
+.group-dialog::backdrop {
+  background: rgb(18 20 29 / 54%);
+  backdrop-filter: blur(8px);
+}
+
 .group-participant-picker {
   display: grid;
   gap: 8px;

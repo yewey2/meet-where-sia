@@ -42,16 +42,6 @@ interface SharedPlanPanelProps {
   onDismissError: () => void;
 }
 
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  'details > summary:first-of-type',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',');
-
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="group-field"><span>{label}</span>{children}</label>;
 }
@@ -77,7 +67,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
   const [copied, setCopied] = useState<'plan' | 'invite' | null>(null);
   const [localError, setLocalError] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const autoOpenedPlanRef = useRef<string | null>(null);
@@ -124,52 +114,15 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
 
   useEffect(() => {
     if (!dialogOpen) return;
+    const dialogElement = dialogRef.current;
+    if (!dialogElement) return;
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    const previousBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    window.requestAnimationFrame(() => dialogRef.current?.focus());
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setDialog(null);
-        return;
-      }
-      if (event.key !== 'Tab' || !dialogRef.current) return;
-
-      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-        .filter((element) => {
-          if (element.closest('[hidden], [aria-hidden="true"]')) return false;
-          const closedDetails = element.closest('details:not([open])');
-          return !closedDetails || element.matches('summary');
-        });
-      if (focusable.length === 0) {
-        event.preventDefault();
-        dialogRef.current.focus();
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const activeElement = document.activeElement;
-      if (event.shiftKey && (activeElement === first || activeElement === dialogRef.current)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (activeElement === last || !dialogRef.current.contains(activeElement))) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    const handleFocusIn = (event: FocusEvent) => {
-      if (dialogRef.current && !dialogRef.current.contains(event.target as Node)) dialogRef.current.focus();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('focusin', handleFocusIn);
+    if (!dialogElement.open) dialogElement.showModal();
+    window.requestAnimationFrame(() => dialogElement.focus());
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('focusin', handleFocusIn);
-      document.body.style.overflow = previousBodyOverflow;
+      if (dialogElement.open) dialogElement.close();
       const previous = previouslyFocusedRef.current;
       if (previous?.isConnected) previous.focus();
       else triggerRef.current?.focus();
@@ -288,15 +241,32 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
       </button>
 
       {dialog && dialogRoot ? createPortal(
-        <div className={`group-dialog-backdrop${isAccessDialog ? ' is-access' : ''}`} role="presentation" onMouseDown={closeDialog}>
-          <section ref={dialogRef} tabIndex={-1} className={`group-dialog${isAccessDialog ? ' group-dialog-access' : ''}`} role="dialog" aria-modal="true" aria-labelledby="group-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+        <dialog
+          ref={dialogRef}
+          tabIndex={-1}
+          className={`group-dialog${isAccessDialog ? ' group-dialog-access' : ''}`}
+          aria-labelledby="group-dialog-title"
+          onCancel={(event) => {
+            event.preventDefault();
+            closeDialog();
+          }}
+          onClick={(event) => {
+            if (event.target !== event.currentTarget) return;
+            const bounds = event.currentTarget.getBoundingClientRect();
+            const outside = event.clientX < bounds.left
+              || event.clientX > bounds.right
+              || event.clientY < bounds.top
+              || event.clientY > bounds.bottom;
+            if (outside) closeDialog();
+          }}
+        >
             <button className="group-dialog-close" type="button" aria-label="Close" onClick={closeDialog}>×</button>
 
             {dialog === 'create' ? (
               <>
                 <p className="group-kicker">Share with your group</p>
                 <h2 id="group-dialog-title">Create a shared plan</h2>
-                <p className="group-dialog-copy">Friends can view the plan from its link and create access to add their own route. You stay in control.</p>
+                <p className="group-dialog-copy">Share one plan so friends can add or update only their own route. You stay in control of the group.</p>
                 <form onSubmit={(event) => void submitCreate(event).catch(() => undefined)}>
                   <Field label="Plan name"><input required maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} /></Field>
                   <div className="group-field-row">
@@ -327,7 +297,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
                       <input aria-label="Share link" readOnly value={planUrl} />
                       <button type="button" onClick={() => void copyText(planUrl, 'plan')}>{copied === 'plan' ? 'Copied' : 'Copy link'}</button>
                     </div>
-                    <p className="group-hint">Anyone with this link can view names and locations. Prefer MRT stations or approximate locations over home addresses.</p>
+                    <p className="group-hint">Anyone with this link can see names and locations. Use MRT stations or approximate places instead of home addresses.</p>
                   </>
                 ) : (
                   <p className="group-dialog-copy">Select your name to sign in and update your route, or join as a new participant.</p>
@@ -459,8 +429,7 @@ export function SharedPlanPanel(props: SharedPlanPanelProps) {
                 ) : null}
               </>
             )}
-          </section>
-        </div>,
+        </dialog>,
         dialogRoot,
       ) : null}
     </>
