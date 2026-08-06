@@ -9,6 +9,7 @@ import {
   googleMapTileUrl,
 } from '../lib/googleMapTiles';
 import { SINGAPORE_CENTER } from '../lib/location';
+import { recommendationLabel } from '../lib/recommendationLabels';
 import {
   participantColorOption,
   type ParticipantColorOption,
@@ -296,9 +297,15 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
     }
 
     if (result) {
+      const selectedRecommendationLabel = result.mode === 'rail'
+        ? recommendationLabel(Math.max(
+            0,
+            result.alternatives.findIndex((station) => station.id === result.station.id),
+          ))
+        : '★';
       const resultMarker = L.marker([result.lat, result.lng], {
         alt: `Meeting point: ${result.title}`,
-        icon: leafletMarkerIcon('result', result.mode === 'rail' ? 'M' : '★'),
+        icon: leafletMarkerIcon('result', selectedRecommendationLabel),
         keyboard: false,
         title: result.title,
         zIndexOffset: 2000,
@@ -310,14 +317,14 @@ export function MapPanel({ points, result, onSelectStation }: MapPanelProps) {
       bounds.extend([result.lat, result.lng]);
 
       if (result.mode === 'rail') {
-        for (const { station: alternative, rank } of result.alternatives
-          .map((station, index) => ({ station, rank: index + 1 }))
+        for (const { station: alternative, label } of result.alternatives
+          .map((station, index) => ({ station, label: recommendationLabel(index) }))
           .filter(({ station }) => station.id !== result.station.id)
           .slice(0, 3)) {
           const alternativeLabel = formatStationLabel(alternative);
           const marker = L.marker([alternative.lat, alternative.lng], {
-            alt: `Select rank ${rank}: ${alternativeLabel}`,
-            icon: leafletMarkerIcon('alternative', String(rank)),
+            alt: `Select recommendation ${label}: ${alternativeLabel}`,
+            icon: leafletMarkerIcon('alternative', label),
             keyboard: false,
             title: `Select ${alternativeLabel}`,
             zIndexOffset: 200,

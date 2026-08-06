@@ -33,6 +33,8 @@ export function participantTravelTimeMetrics(journeys: RailJourneyEstimate[]): {
   totalMinutes: number;
   averageMinutes: number;
   maxMinutes: number;
+  meanSquaredMinutes: number;
+  rootMeanSquareMinutes: number;
   varianceMinutes: number;
   standardDeviationMinutes: number;
 } {
@@ -40,6 +42,9 @@ export function participantTravelTimeMetrics(journeys: RailJourneyEstimate[]): {
   const totals = summaries.map((summary) => summary.totalMinutes);
   const totalMinutes = totals.reduce((sum, minutes) => sum + minutes, 0);
   const averageMinutes = totals.length ? totalMinutes / totals.length : 0;
+  const meanSquaredMinutes = totals.length
+    ? totals.reduce((sum, minutes) => sum + minutes ** 2, 0) / totals.length
+    : 0;
   const varianceMinutes = totals.length
     ? totals.reduce((sum, minutes) => sum + (minutes - averageMinutes) ** 2, 0) / totals.length
     : 0;
@@ -48,6 +53,8 @@ export function participantTravelTimeMetrics(journeys: RailJourneyEstimate[]): {
     totalMinutes,
     averageMinutes,
     maxMinutes: totals.length ? Math.max(...totals) : 0,
+    meanSquaredMinutes,
+    rootMeanSquareMinutes: Math.sqrt(meanSquaredMinutes),
     varianceMinutes,
     standardDeviationMinutes: Math.sqrt(varianceMinutes),
   };

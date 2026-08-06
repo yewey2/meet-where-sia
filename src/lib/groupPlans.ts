@@ -1,4 +1,4 @@
-import type { Mode, Participant, RailObjective } from '../types';
+import type { DistanceObjective, Mode, Participant, RailObjective } from '../types';
 
 export type SharedMemberRole = 'owner' | 'member';
 
@@ -16,6 +16,7 @@ export interface SharedPlan {
   title: string;
   mode: Mode;
   railObjective: RailObjective;
+  distanceObjective: DistanceObjective;
   participants: Participant[];
   createdAt: string;
   updatedAt: string;
@@ -32,7 +33,8 @@ export type PlanMutation =
   | { type: 'removeParticipant'; participantId: string }
   | { type: 'setMode'; mode: Mode }
   | { type: 'setRailObjective'; railObjective: RailObjective }
-  | { type: 'resetPlan'; participants: Participant[]; mode: Mode; railObjective: RailObjective }
+  | { type: 'setDistanceObjective'; distanceObjective: DistanceObjective }
+  | { type: 'resetPlan'; participants: Participant[]; mode: Mode; railObjective: RailObjective; distanceObjective: DistanceObjective }
   | { type: 'renamePlan'; title: string }
   | { type: 'setJoining'; enabled: boolean }
   | { type: 'createInvite'; participantId: string }
@@ -90,6 +92,7 @@ export async function createSharedPlan(input: {
   participants: Participant[];
   mode: Mode;
   railObjective: RailObjective;
+  distanceObjective: DistanceObjective;
 }) {
   const response = await api<{ plan: SharedPlan }>('/api/plans', {
     method: 'POST',

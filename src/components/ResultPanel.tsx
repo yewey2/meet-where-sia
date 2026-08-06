@@ -14,6 +14,7 @@ import { haversineKm } from '../lib/centroid';
 import { reverseRailRouteSteps } from '../lib/railGraph';
 import { meetingDirectionsUrl, meetingPointMapsUrl } from '../lib/directions';
 import { formatStationLabel } from '../lib/stations';
+import { recommendationLabel } from '../lib/recommendationLabels';
 import {
   summarizeParticipantJourneys,
   type ParticipantJourneySummary,
@@ -50,15 +51,19 @@ function formatMinutes(value: number): string {
 }
 
 function objectiveLabel(objective: RailObjective): string {
-  if (objective === 'average') return 'Lowest total travel time';
-  if (objective === 'evenness') return 'Most even journeys';
-  return 'Shortest longest journey';
+  if (objective === 'average') return 'Quickest overall';
+  if (objective === 'weighted') return 'Weighted centre';
+  if (objective === 'evenness') return 'Similar travel times';
+  return 'Keep trips manageable';
 }
 
 function objectiveMetric(station: RankedStation, objective: RailObjective): string {
   if (objective === 'average') return `${formatMinutes(station.totalMinutes)} group total`;
+  if (objective === 'weighted') {
+    return `${formatMinutes(station.rootMeanSquareMinutes)} weighted score`;
+  }
   if (objective === 'evenness') return `${formatMinutes(station.standardDeviationMinutes)} spread`;
-  return `${formatMinutes(station.maxMinutes)} longest total`;
+  return `${formatMinutes(station.maxMinutes)} time ceiling`;
 }
 
 const RAIL_LINE_NAMES: Record<string, string> = {
@@ -417,6 +422,9 @@ export function ResultPanel({
           ) + 1,
         )
       : 0;
+  const selectedRailLabel = result.mode === 'rail'
+    ? recommendationLabel(selectedRailRank - 1)
+    : '';
   const mapsUrl = meetingPointMapsUrl(result);
   const websiteUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
   const isSharedPlan = new URLSearchParams(window.location.search).has('plan');
@@ -475,16 +483,18 @@ export function ResultPanel({
     >
       <p className="sr-only" role="status">
         {result.mode === 'rail'
-          ? `Selected rank ${selectedRailRank}: ${result.title}`
-          : `Fair meeting point: ${result.title}`}
+          ? `Selected recommendation ${selectedRailLabel}: ${result.title}`
+          : `${result.objective === 'centroid' ? 'Balanced centre' : 'Shortest-overall point'}: ${result.title}`}
       </p>
       <div className="result-kicker">
         {result.mode === 'rail' ? <RailIcon /> : <SparkIcon />}
         {result.mode === 'rail'
           ? selectedRailRank === 1
             ? `Best MRT/LRT station · ${objectiveLabel(result.objective)}`
-            : `Selected station · #${selectedRailRank} overall`
-          : 'Fairest by distance'}
+            : `Selected station · option ${selectedRailLabel}`
+          : result.objective === 'centroid'
+            ? 'Balanced centre'
+            : 'Shortest overall'}
       </div>
 
       <div className="result-title-row">
@@ -539,7 +549,11 @@ export function ResultPanel({
           ) : (
             <p className="result-address">
               <MapPinIcon />
-              <span>{result.address || 'Approximate centre of the locations entered'}</span>
+              <span>{result.address || (
+                result.objective === 'centroid'
+                  ? 'Balanced centre of the locations entered'
+                  : 'Point with the lowest combined distance'
+              )}</span>
             </p>
           )}
         </div>
@@ -553,15 +567,19 @@ export function ResultPanel({
             {result.mode === 'rail'
               ? result.objective === 'average'
                 ? 'Group total'
+                : result.objective === 'weighted'
+                  ? 'Weighted time score'
                 : result.objective === 'evenness'
                   ? 'Journey-time spread'
-                  : 'Longest full outing'
+                  : 'Highest outing time'
               : 'Average distance'}
           </span>
           <strong>
             {result.mode === 'rail'
               ? result.objective === 'average'
                 ? formatMinutes(result.totalMinutes)
+                : result.objective === 'weighted'
+                  ? formatMinutes(result.station.rootMeanSquareMinutes)
                 : result.objective === 'evenness'
                   ? formatMinutes(result.station.standardDeviationMinutes)
                   : formatMinutes(result.maxMinutes)
@@ -570,7 +588,7 @@ export function ResultPanel({
         </div>
         <div className="metric-card">
           <span>{result.mode === 'rail'
-            ? result.objective === 'average' ? 'Longest full outing' : 'Average per person'
+            ? result.objective === 'average' ? 'Highest outing time' : 'Average per person'
             : 'Farthest person'}</span>
           <strong>
             {result.mode === 'rail'
@@ -619,7 +637,7 @@ export function ResultPanel({
                     checked={selected}
                     onChange={() => onSelectStation(station)}
                   />
-                  <span className="alternative-rank">{index + 1}</span>
+                  <span className="alternative-rank">{recommendationLabel(index)}</span>
                   <span className="alternative-name">
                     <strong>{formatStationLabel(station)}</strong>
                     <small>
@@ -710,7 +728,9 @@ export function ResultPanel({
         <strong>Why this spot?</strong>{' '}
         {result.mode === 'rail'
           ? `Compared ${result.candidateCount} connected stations for ${objectiveLabel(result.objective).toLowerCase()}, including each person’s journey to the meetup and onwards. Estimates cover walking, waits, trains and transfers, but not buses.`
-          : 'This point approximately minimises the combined straight-line distance to every location.'}
+          : result.objective === 'centroid'
+            ? 'This point keeps the group geographically central by giving longer distances more influence.'
+            : 'This point approximately minimises the combined straight-line distance to every location.'}
       </p>
     </section>
   );

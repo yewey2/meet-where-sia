@@ -635,6 +635,15 @@ export function compareRankedStations(
     if (Math.abs(averageDelta) > 0.05) return averageDelta;
     const longestDelta = a.maxMinutes - b.maxMinutes;
     if (Math.abs(longestDelta) > 0.05) return longestDelta;
+  } else if (objective === 'weighted') {
+    // Squaring each person's complete outing gives longer trips progressively
+    // more influence without allowing only the single longest trip to decide.
+    const weightedDelta = a.meanSquaredMinutes - b.meanSquaredMinutes;
+    if (Math.abs(weightedDelta) > 0.01) return weightedDelta;
+    const averageDelta = a.averageMinutes - b.averageMinutes;
+    if (Math.abs(averageDelta) > 0.05) return averageDelta;
+    const longestDelta = a.maxMinutes - b.maxMinutes;
+    if (Math.abs(longestDelta) > 0.05) return longestDelta;
   } else if (objective === 'evenness') {
     const varianceDelta = a.varianceMinutes - b.varianceMinutes;
     if (Math.abs(varianceDelta) > 0.01) return varianceDelta;

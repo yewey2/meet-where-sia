@@ -1,5 +1,6 @@
 export type Mode = 'distance' | 'rail';
-export type RailObjective = 'minimax' | 'average' | 'evenness';
+export type DistanceObjective = 'centroid' | 'median';
+export type RailObjective = 'minimax' | 'average' | 'weighted' | 'evenness';
 export type ParticipantColor =
   | 'coral'
   | 'orange'
@@ -71,6 +72,8 @@ export interface RankedStation extends MrtStation {
   totalMinutes: number;
   averageMinutes: number;
   maxMinutes: number;
+  meanSquaredMinutes: number;
+  rootMeanSquareMinutes: number;
   varianceMinutes: number;
   standardDeviationMinutes: number;
   totalTransfers: number;
@@ -125,6 +128,7 @@ export type RailRouteStep = RailRideStep | RailTransferStep;
 
 export interface DistanceResult extends Coordinate {
   mode: 'distance';
+  objective: DistanceObjective;
   title: string;
   address: string;
   totalKm: number;

@@ -44,16 +44,14 @@ tooltip/sub-label) should surface the signed-in participant name, e.g.
 **Status:** Done — `average` is first in `RAIL_OBJECTIVE_OPTIONS` and is the
 saved default in `loadSavedState`.
 
-### 2b. `<details>` disclosure hides the three-option picker
-**Status:** Done — the radio picker is inside a `<details>` element in
-`App.tsx` ~line 925.
+### 2b. `<details>` disclosure hides the rail-objective picker
+**Status:** Done — the active radio picker is inside a `<details>` disclosure in
+`App.tsx` for both rail and distance modes.
 
 ### 2c. Distance mode has no equivalent objective disclosure
-**Status:** Done.
-When `mode === 'distance'` the geometric-median / arithmetic-mean distinction is
-invisible to the user. A one-line summary should appear (e.g. "Uses geographic
-midpoint — straight-line distance") so users know what they are getting. The
-advanced toggle can remain hidden; just surface the active algorithm name.
+**Status:** Done. Distance mode exposes the active method and lets viewers choose
+between Balanced centre (arithmetic centroid) and Shortest overall (geometric
+median), with the same disclosure and comparison pattern as rail mode.
 
 ### 2d. Method panel copy is generic
 **Status:** Done.
@@ -67,24 +65,27 @@ goal because those controls use the owner-only `canManagePlan` permission. The
 lock should apply to people and plan administration, not to calculation tools:
 participants must remain restricted to editing their own route, while anyone
 viewing the plan should be able to try MRT/LRT vs direct distance, switch between
-the three rail objectives, calculate results, and explore alternative stations.
+the four rail objectives, calculate results, and explore alternative stations.
 
 Use local calculation overrides rather than allowing contributors to persist
-owner-only plan mutations. The owner's saved `mode` and `railObjective` remain
-the defaults for newly opened views; owner changes may continue to update those
-shared defaults. Contributor and visitor changes should affect only their own
-view and must not call `setMode` or `setRailObjective`. Once a viewer overrides a
-calculation setting, background plan polling must continue syncing participant
-routes without replacing that local choice. Reset the override when switching,
-leaving, or reopening a plan, and show non-owners a short cue such as "Changes
-here affect only your view."
+owner-only plan mutations. The owner's saved `mode`, `railObjective`, and
+`distanceObjective` remain the defaults for newly opened views; owner changes may
+continue to update those shared defaults. Contributor and visitor changes should
+affect only their own view and must not call the corresponding plan mutations.
+Once a viewer overrides a calculation setting, background plan polling must
+continue syncing participant routes without replacing that local choice. Reset
+the override when switching, leaving, or reopening a plan, and show non-owners a
+short cue such as "Changes here affect only your view."
 
 Keep backend authorization unchanged as defense in depth. Add coverage proving
 that contributors can use all calculation controls locally without issuing plan
 mutations, remote participant updates preserve local calculation choices, and
 person/admin permissions remain locked to the appropriate member or owner.
-`src/App.tsx` currently has overlapping in-progress edits from another agent, so
-coordinate or wait for that work to settle before implementing this item.
+
+### 2f. Integrate published fairness objectives into the UI/UX branch
+**Status:** Done. The merge preserves Weighted centre, Balanced centre, Shortest
+overall, modified-Weiszfeld handling, RMS display, shared-plan persistence,
+viewer-local calculation overrides, station codes, and A-D recommendation labels.
 
 ---
 
@@ -171,9 +172,9 @@ Needs a UX-writer pass for clarity, warmth, and Singapore-appropriate voice.
 
 ### 5b. Fairness selector labels and summaries
 **Status:** Done.
-The three rail objective labels ("Quickest overall", "Cap longest journey",
-"Equal travel time") and their `summary` strings should be reviewed for plain-
-language clarity. Avoid jargon like "minimax" leaking through.
+The four rail objective labels ("Quickest overall", "Weighted centre", "Keep
+trips manageable", "Similar travel times") and their `summary` strings use
+plain-language primary copy, with mathematical detail in the comparison dialog.
 
 ### 5c. Shared-plan dialog copy
 **Status:** Done.

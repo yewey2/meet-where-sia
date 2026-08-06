@@ -20,6 +20,7 @@ import {
 } from './components/Icons';
 import { createId } from './lib/ids';
 import {
+  arithmeticCentroid,
   distanceMetrics,
   geometricMedian,
 } from './lib/centroid';
@@ -52,6 +53,7 @@ import {
 import { actionableErrorMessage } from './lib/errorMessages';
 import type { SharedPlan } from './lib/groupPlans';
 import type {
+  DistanceObjective,
   EndpointPoint,
   LocationValue,
   MeetingResult,
@@ -84,22 +86,54 @@ const RAIL_OBJECTIVE_OPTIONS: Array<{
     tradeoff: 'One person may have a slightly longer journey.',
   },
   {
-    id: 'minimax',
-    label: 'Cap longest journey',
+    id: 'weighted',
+    label: 'Weighted centre',
     summary:
-      'Makes the longest individual trip as short as possible so no one gets stuck travelling too far.',
+      'Balances speed and fairness by giving progressively more weight to longer trips.',
     detail:
-      'Protects the person with the longest total journey by making that journey as short as possible.',
-    tradeoff: 'The group’s total travel time may be a bit higher.',
+      'Minimises the average of everyone’s squared full journey time. A trip twice as long has four times the influence.',
+    tradeoff: 'The group total may be slightly higher than the quickest-overall option.',
+  },
+  {
+    id: 'minimax',
+    label: 'Keep trips manageable',
+    summary:
+      'Chooses the place with the lowest possible ceiling on anyone’s full outing.',
+    detail:
+      'This is the minimax calculation: it compares each station’s highest full outing time, whoever that person would be there.',
+    tradeoff: 'The group’s combined journey time may be higher.',
   },
   {
     id: 'evenness',
-    label: 'Equal travel time',
+    label: 'Similar travel times',
     summary:
       'Balances trip durations so everyone travels roughly the same amount.',
     detail:
-      'Minimises the spread between people’s complete journey times so the effort is more evenly shared.',
-    tradeoff: 'The fairest split may add a few minutes for those who live nearby.',
+      'Minimises the variance between people’s complete journey times so the effort is more evenly shared.',
+    tradeoff: 'The fairest split may not be the quickest option for the group.',
+  },
+];
+
+const DISTANCE_OBJECTIVE_OPTIONS: Array<{
+  id: DistanceObjective;
+  label: string;
+  summary: string;
+  detail: string;
+  tradeoff: string;
+}> = [
+  {
+    id: 'centroid',
+    label: 'Balanced centre',
+    summary: 'A more central point when someone is much farther away.',
+    detail: 'Uses the arithmetic centroid, which minimises the average squared straight-line distance. A trip twice as long has four times the influence.',
+    tradeoff: 'The group’s combined distance may be higher.',
+  },
+  {
+    id: 'median',
+    label: 'Shortest overall',
+    summary: 'The least total straight-line distance for the group.',
+    detail: 'Uses the geometric median, which minimises the sum of ordinary straight-line distances to every start and end point.',
+    tradeoff: 'Someone far from the others may travel much farther than everyone else.',
   },
 ];
 
@@ -132,6 +166,7 @@ function loadSavedState(): {
   participants: Participant[];
   mode: Mode;
   railObjective: RailObjective;
+  distanceObjective: DistanceObjective;
 } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -140,12 +175,14 @@ function loadSavedState(): {
         participants: [createParticipant()],
         mode: 'rail',
         railObjective: 'average',
+        distanceObjective: 'centroid',
       };
     }
     const parsed = JSON.parse(raw) as {
       participants?: Participant[];
       mode?: Mode;
       railObjective?: RailObjective;
+      distanceObjective?: DistanceObjective;
     };
 
     const participants = Array.isArray(parsed.participants)
@@ -166,15 +203,19 @@ function loadSavedState(): {
         : [createParticipant()],
       mode: parsed.mode === 'distance' ? 'distance' : 'rail',
       railObjective:
-        parsed.railObjective === 'minimax' || parsed.railObjective === 'evenness'
+        parsed.railObjective === 'minimax' ||
+        parsed.railObjective === 'weighted' ||
+        parsed.railObjective === 'evenness'
           ? parsed.railObjective
           : 'average',
+      distanceObjective: parsed.distanceObjective === 'median' ? 'median' : 'centroid',
     };
   } catch {
     return {
       participants: [createParticipant()],
       mode: 'rail',
       railObjective: 'average',
+      distanceObjective: 'centroid',
     };
   }
 }
@@ -304,6 +345,7 @@ export default function App() {
   const [participants, setParticipants] = useState<Participant[]>(saved.participants);
   const [mode, setMode] = useState<Mode>(saved.mode);
   const [railObjective, setRailObjective] = useState<RailObjective>(saved.railObjective);
+  const [distanceObjective, setDistanceObjective] = useState<DistanceObjective>(saved.distanceObjective);
   const [result, setResult] = useState<MeetingResult | null>(null);
   const [stations, setStations] = useState<MrtStation[]>([]);
   const [stationLoadError, setStationLoadError] = useState('');
@@ -328,6 +370,7 @@ export default function App() {
     )) {
       setMode(plan.mode);
       setRailObjective(plan.railObjective);
+      setDistanceObjective(plan.distanceObjective);
       localCalculationOverrideRef.current = false;
     }
     sharedCalculationPlanIdRef.current = plan.id;
@@ -339,6 +382,7 @@ export default function App() {
     participants,
     mode,
     railObjective,
+    distanceObjective,
     onRemotePlan: applyRemotePlan,
   });
   const hasSharedLink = Boolean(shared.requestedPlanId);
@@ -348,6 +392,15 @@ export default function App() {
   const selectedRailObjective =
     RAIL_OBJECTIVE_OPTIONS.find((option) => option.id === railObjective)
     ?? RAIL_OBJECTIVE_OPTIONS[0];
+  const selectedDistanceObjective =
+    DISTANCE_OBJECTIVE_OPTIONS.find((option) => option.id === distanceObjective)
+    ?? DISTANCE_OBJECTIVE_OPTIONS[0];
+  const activeObjectiveOptions = mode === 'rail'
+    ? RAIL_OBJECTIVE_OPTIONS
+    : DISTANCE_OBJECTIVE_OPTIONS;
+  const selectedObjective = mode === 'rail'
+    ? selectedRailObjective
+    : selectedDistanceObjective;
   const canEditParticipant = useCallback((participantId: string) => {
     if (!hasSharedLink) return true;
     if (!currentSharedMember) return false;
@@ -360,12 +413,12 @@ export default function App() {
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ participants, mode, railObjective }),
+        JSON.stringify({ participants, mode, railObjective, distanceObjective }),
       );
     } catch {
       // The planner still works when storage is blocked (for example, private embeds).
     }
-  }, [hasSharedLink, mode, participants, railObjective]);
+  }, [distanceObjective, hasSharedLink, mode, participants, railObjective]);
 
   useEffect(() => {
     if (!hasGoogleKey) return;
@@ -507,7 +560,8 @@ export default function App() {
     setParticipants(nextParticipants);
     setMode('rail');
     setRailObjective('average');
-    void shared.resetPlan(nextParticipants, 'rail', 'average').catch(() => undefined);
+    setDistanceObjective('centroid');
+    void shared.resetPlan(nextParticipants, 'rail', 'average', 'centroid').catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
@@ -522,7 +576,8 @@ export default function App() {
     setParticipants(nextParticipants);
     setMode('rail');
     setRailObjective('average');
-    void shared.resetPlan(nextParticipants, 'rail', 'average').catch(() => undefined);
+    setDistanceObjective('centroid');
+    void shared.resetPlan(nextParticipants, 'rail', 'average', 'centroid').catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
@@ -549,6 +604,23 @@ export default function App() {
     }
     setResult(null);
     setGlobalError('');
+  }
+
+  function chooseDistanceObjective(nextObjective: DistanceObjective) {
+    if (isCalculating || distanceObjective === nextObjective) return;
+    const policy = calculationChangePolicy(Boolean(shared.plan), sharedOwner);
+    if (policy.overrideSharedDefaults) localCalculationOverrideRef.current = true;
+    setDistanceObjective(nextObjective);
+    if (policy.persistShared) {
+      void shared.setDistanceObjective(nextObjective).catch(() => undefined);
+    }
+    setResult(null);
+    setGlobalError('');
+  }
+
+  function chooseActiveObjective(nextObjective: RailObjective | DistanceObjective) {
+    if (mode === 'rail') chooseRailObjective(nextObjective as RailObjective);
+    else chooseDistanceObjective(nextObjective as DistanceObjective);
   }
 
   const selectMeetingStation = useCallback((station: RankedStation) => {
@@ -587,6 +659,7 @@ export default function App() {
     const calculationParticipants = participants;
     const calculationMode = mode;
     const calculationRailObjective = railObjective;
+    const calculationDistanceObjective = distanceObjective;
     const calculationIsCurrent = () =>
       planRevisionRef.current === calculationRevision;
 
@@ -652,13 +725,20 @@ export default function App() {
 
       let nextResult: MeetingResult;
       if (calculationMode === 'distance') {
-        const center = geometricMedian(points);
+        const center = calculationDistanceObjective === 'centroid'
+          ? arithmeticCentroid(points)
+          : geometricMedian(points);
         const metrics = distanceMetrics(center, points);
         const address = await reverseGeocode(center);
-        const title = address.split(',')[0]?.trim() || 'Fair distance centre';
+        const title = address.split(',')[0]?.trim() || (
+          calculationDistanceObjective === 'centroid'
+            ? 'Balanced distance centre'
+            : 'Minimum-distance point'
+        );
 
         nextResult = {
           mode: 'distance',
+          objective: calculationDistanceObjective,
           ...center,
           ...metrics,
           title,
@@ -773,6 +853,7 @@ export default function App() {
               setParticipants(localPlan.participants);
               setMode(localPlan.mode);
               setRailObjective(localPlan.railObjective);
+              setDistanceObjective(localPlan.distanceObjective);
               setResult(null);
               setGlobalError('');
             }}
@@ -785,6 +866,7 @@ export default function App() {
               setParticipants(localPlan.participants);
               setMode(localPlan.mode);
               setRailObjective(localPlan.railObjective);
+              setDistanceObjective(localPlan.distanceObjective);
               setResult(null);
               setGlobalError('');
             }}
@@ -818,13 +900,14 @@ export default function App() {
             <span>Fairness goal</span>
             <h2 id="objective-help-title">What’s the difference?</h2>
             <p>
-              Every goal counts each person’s journey to the meetup and onwards.
-              The difference is what the station ranking prioritises.
+              {mode === 'rail'
+                ? 'Every goal counts each person’s journey to the meetup and onwards. The difference is what the station ranking prioritises.'
+                : 'Both goals use straight-line distance to every start and end point. The difference is how strongly longer distances influence the result.'}
             </p>
           </div>
           <ul className="objective-help-list">
-            {RAIL_OBJECTIVE_OPTIONS.map((option) => {
-              const selected = option.id === railObjective;
+            {activeObjectiveOptions.map((option) => {
+              const selected = option.id === (mode === 'rail' ? railObjective : distanceObjective);
               return (
                 <li className={selected ? 'is-selected' : ''} key={option.id}>
                   <div className="objective-help-option-heading">
@@ -837,7 +920,7 @@ export default function App() {
                     type="button"
                     disabled={selected || isCalculating}
                     onClick={() => {
-                      chooseRailObjective(option.id);
+                      chooseActiveObjective(option.id);
                       objectiveHelpDialogRef.current?.close();
                     }}
                   >
@@ -941,66 +1024,67 @@ export default function App() {
                     onChange={() => chooseMode('distance')}
                   />
                   <RouteIcon />
-                  <span><strong>Direct distance</strong><small>Geographic midpoint</small></span>
+                  <span><strong>Direct distance</strong><small>{selectedDistanceObjective.label}</small></span>
                 </label>
               </fieldset>
-              {mode === 'rail' ? (
-                <>
-                  <div className="rail-objective-guidance">
-                    <div>
-                      <strong>{selectedRailObjective.label}</strong>
-                      <p id="rail-objective-explanation">{selectedRailObjective.summary}</p>
-                    </div>
-                  </div>
-                  <details className="rail-objective-disclosure">
-                    <summary className="rail-objective-disclosure-trigger">
-                      <span>Customise fairness goal</span>
-                      <small>
-                        {railObjective === 'average' ? 'Quickest overall (default)' : railObjective === 'minimax' ? 'Cap longest journey' : 'Equal travel time'}
-                      </small>
-                    </summary>
-                    <fieldset
-                      className="rail-objective-picker"
-                      aria-describedby="rail-objective-explanation"
-                    >
-                      <legend className="sr-only">Prioritise</legend>
-                      {RAIL_OBJECTIVE_OPTIONS.map((option) => (
-                        <label
-                          className={railObjective === option.id ? 'is-selected' : ''}
-                          key={option.id}
-                        >
-                          <input
-                            type="radio"
-                            name="rail-objective"
-                            value={option.id}
-                            checked={railObjective === option.id}
-                            disabled={isCalculating}
-                            onChange={() => chooseRailObjective(option.id)}
-                          />
-                          <span>
-                            <strong>{option.label}{option.id === 'average' ? ' (default)' : ''}</strong>
-                            <small>{option.summary}</small>
-                          </span>
-                        </label>
-                      ))}
-                    </fieldset>
-                    <button
-                      type="button"
-                      className="rail-objective-help"
-                      aria-haspopup="dialog"
-                      onClick={() => objectiveHelpDialogRef.current?.showModal()}
-                    >
-                      <span aria-hidden="true">i</span>
-                      Full comparison
-                    </button>
-                  </details>
-                </>
-              ) : (
-                <div className="distance-mode-guidance">
-                  <strong>Geographic median</strong>
-                  <p>Balances straight-line distance between everyone’s locations, independent of train routes.</p>
+              <div className={`rail-objective-guidance ${mode === 'distance' ? 'distance-mode-guidance' : ''}`}>
+                <div>
+                  <strong>{selectedObjective.label}</strong>
+                  <p id="objective-explanation">{selectedObjective.summary}</p>
                 </div>
-              )}
+              </div>
+              <details className="rail-objective-disclosure">
+                <summary className="rail-objective-disclosure-trigger">
+                  <span>Customise fairness goal</span>
+                  <small>
+                    {selectedObjective.label}
+                    {(mode === 'rail' && railObjective === 'average') ||
+                    (mode === 'distance' && distanceObjective === 'centroid')
+                      ? ' (default)'
+                      : ''}
+                  </small>
+                </summary>
+                <fieldset
+                  className="rail-objective-picker"
+                  aria-describedby="objective-explanation"
+                >
+                  <legend className="sr-only">Prioritise</legend>
+                  {activeObjectiveOptions.map((option) => (
+                    <label
+                      className={selectedObjective.id === option.id ? 'is-selected' : ''}
+                      key={option.id}
+                    >
+                      <input
+                        type="radio"
+                        name={`${mode}-objective`}
+                        value={option.id}
+                        checked={selectedObjective.id === option.id}
+                        disabled={isCalculating}
+                        onChange={() => chooseActiveObjective(option.id)}
+                      />
+                      <span>
+                        <strong>
+                          {option.label}
+                          {(mode === 'rail' && option.id === 'average') ||
+                          (mode === 'distance' && option.id === 'centroid')
+                            ? ' (default)'
+                            : ''}
+                        </strong>
+                        <small>{option.summary}</small>
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+                <button
+                  type="button"
+                  className="rail-objective-help"
+                  aria-haspopup="dialog"
+                  onClick={() => objectiveHelpDialogRef.current?.showModal()}
+                >
+                  <span aria-hidden="true">i</span>
+                  Full comparison
+                </button>
+              </details>
               {mode === 'rail' && stationLoadError ? (
                 <p className="inline-warning">Rail data is unavailable right now. {stationLoadError}</p>
               ) : null}

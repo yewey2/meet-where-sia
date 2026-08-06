@@ -21,6 +21,21 @@ export function haversineKm(a: Coordinate, b: Coordinate): number {
 }
 
 /**
+ * Finds the arithmetic centroid, which minimises squared distance on the local
+ * tangent plane and gives progressively more influence to longer distances.
+ */
+export function arithmeticCentroid(points: Coordinate[]): Coordinate {
+  if (points.length === 0) {
+    throw new Error('At least one coordinate is required.');
+  }
+
+  return {
+    lat: points.reduce((sum, point) => sum + point.lat, 0) / points.length,
+    lng: points.reduce((sum, point) => sum + point.lng, 0) / points.length,
+  };
+}
+
+/**
  * Finds the geometric median using Weiszfeld's algorithm on a local tangent
  * plane. For Singapore-scale distances this closely approximates the point
  * that minimizes the sum of straight-line kilometres to all endpoints.
@@ -56,31 +71,43 @@ export function geometricMedian(points: Coordinate[]): Coordinate {
     let numeratorX = 0;
     let numeratorY = 0;
     let denominator = 0;
-    let coincidentPoint: { x: number; y: number } | undefined;
+    let coincidentCount = 0;
+    let residualX = 0;
+    let residualY = 0;
 
     for (const point of planar) {
       const distance = Math.hypot(current.x - point.x, current.y - point.y);
 
       if (distance < 0.001) {
-        coincidentPoint = point;
-        break;
+        coincidentCount += 1;
+        continue;
       }
 
       const weight = 1 / distance;
       numeratorX += point.x * weight;
       numeratorY += point.y * weight;
       denominator += weight;
+      residualX += (point.x - current.x) * weight;
+      residualY += (point.y - current.y) * weight;
     }
 
-    if (coincidentPoint) {
-      current = coincidentPoint;
-      break;
-    }
-
-    const next = {
+    const weightedPoint = {
       x: numeratorX / denominator,
       y: numeratorY / denominator,
     };
+    let next = weightedPoint;
+
+    if (coincidentCount > 0) {
+      const residualMagnitude = Math.hypot(residualX, residualY);
+      // Modified Weiszfeld step: an input point is only the answer when its
+      // coincident weight can balance all directions to the other points.
+      if (residualMagnitude <= coincidentCount) break;
+      const retainedWeight = coincidentCount / residualMagnitude;
+      next = {
+        x: retainedWeight * current.x + (1 - retainedWeight) * weightedPoint.x,
+        y: retainedWeight * current.y + (1 - retainedWeight) * weightedPoint.y,
+      };
+    }
 
     if (Math.hypot(next.x - current.x, next.y - current.y) < 0.01) {
       current = next;
