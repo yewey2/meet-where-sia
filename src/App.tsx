@@ -52,6 +52,10 @@ import {
 } from './lib/calculationPreferences';
 import { actionableErrorMessage } from './lib/errorMessages';
 import type { SharedPlan } from './lib/groupPlans';
+import {
+  DEFAULT_DISTANCE_OBJECTIVE,
+  DEFAULT_RAIL_OBJECTIVE,
+} from './types';
 import type {
   DistanceObjective,
   EndpointPoint,
@@ -77,15 +81,6 @@ const RAIL_OBJECTIVE_OPTIONS: Array<{
   tradeoff: string;
 }> = [
   {
-    id: 'average',
-    label: 'Quickest overall',
-    summary:
-      'Uses the least combined journey time for the group.',
-    detail:
-      'Minimises everyone’s combined journey time across the trip to the meetup and onwards afterwards.',
-    tradeoff: 'The longest individual journey may still be noticeably longer.',
-  },
-  {
     id: 'weighted',
     label: 'Weighted centre',
     summary:
@@ -93,6 +88,15 @@ const RAIL_OBJECTIVE_OPTIONS: Array<{
     detail:
       'Minimises the average of everyone’s squared full journey time. A trip twice as long has four times the influence.',
     tradeoff: 'The group total may be slightly higher than the quickest-overall option.',
+  },
+  {
+    id: 'average',
+    label: 'Quickest overall',
+    summary:
+      'Uses the least combined journey time for the group.',
+    detail:
+      'Minimises everyone’s combined journey time across the trip to the meetup and onwards afterwards.',
+    tradeoff: 'The longest individual journey may still be noticeably longer.',
   },
   {
     id: 'minimax',
@@ -122,18 +126,18 @@ const DISTANCE_OBJECTIVE_OPTIONS: Array<{
   tradeoff: string;
 }> = [
   {
-    id: 'centroid',
-    label: 'Balanced centre',
-    summary: 'Gives longer straight-line distances extra influence.',
-    detail: 'Uses the arithmetic centroid, which minimises the average squared straight-line distance. A trip twice as long has four times the influence.',
-    tradeoff: 'The group’s combined distance may be higher.',
-  },
-  {
     id: 'median',
     label: 'Shortest overall',
     summary: 'Uses the least combined straight-line distance for the group.',
     detail: 'Uses the geometric median, which minimises the sum of ordinary straight-line distances to every start and end point.',
     tradeoff: 'Someone far from the others may travel much farther than everyone else.',
+  },
+  {
+    id: 'centroid',
+    label: 'Balanced centre',
+    summary: 'Gives longer straight-line distances extra influence.',
+    detail: 'Uses the arithmetic centroid, which minimises the average squared straight-line distance. A trip twice as long has four times the influence.',
+    tradeoff: 'The group’s combined distance may be higher.',
   },
 ];
 
@@ -174,8 +178,8 @@ function loadSavedState(): {
       return {
         participants: [createParticipant()],
         mode: 'rail',
-        railObjective: 'average',
-        distanceObjective: 'centroid',
+        railObjective: DEFAULT_RAIL_OBJECTIVE,
+        distanceObjective: DEFAULT_DISTANCE_OBJECTIVE,
       };
     }
     const parsed = JSON.parse(raw) as {
@@ -207,15 +211,18 @@ function loadSavedState(): {
         parsed.railObjective === 'weighted' ||
         parsed.railObjective === 'evenness'
           ? parsed.railObjective
-          : 'average',
-      distanceObjective: parsed.distanceObjective === 'median' ? 'median' : 'centroid',
+          : DEFAULT_RAIL_OBJECTIVE,
+      distanceObjective:
+        parsed.distanceObjective === 'centroid' || parsed.distanceObjective === 'median'
+          ? parsed.distanceObjective
+          : DEFAULT_DISTANCE_OBJECTIVE,
     };
   } catch {
     return {
       participants: [createParticipant()],
       mode: 'rail',
-      railObjective: 'average',
-      distanceObjective: 'centroid',
+      railObjective: DEFAULT_RAIL_OBJECTIVE,
+      distanceObjective: DEFAULT_DISTANCE_OBJECTIVE,
     };
   }
 }
@@ -559,9 +566,14 @@ export default function App() {
     ];
     setParticipants(nextParticipants);
     setMode('rail');
-    setRailObjective('average');
-    setDistanceObjective('centroid');
-    void shared.resetPlan(nextParticipants, 'rail', 'average', 'centroid').catch(() => undefined);
+    setRailObjective(DEFAULT_RAIL_OBJECTIVE);
+    setDistanceObjective(DEFAULT_DISTANCE_OBJECTIVE);
+    void shared.resetPlan(
+      nextParticipants,
+      'rail',
+      DEFAULT_RAIL_OBJECTIVE,
+      DEFAULT_DISTANCE_OBJECTIVE,
+    ).catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
@@ -575,9 +587,14 @@ export default function App() {
     const nextParticipants = [createParticipant()];
     setParticipants(nextParticipants);
     setMode('rail');
-    setRailObjective('average');
-    setDistanceObjective('centroid');
-    void shared.resetPlan(nextParticipants, 'rail', 'average', 'centroid').catch(() => undefined);
+    setRailObjective(DEFAULT_RAIL_OBJECTIVE);
+    setDistanceObjective(DEFAULT_DISTANCE_OBJECTIVE);
+    void shared.resetPlan(
+      nextParticipants,
+      'rail',
+      DEFAULT_RAIL_OBJECTIVE,
+      DEFAULT_DISTANCE_OBJECTIVE,
+    ).catch(() => undefined);
     setResult(null);
     setGlobalError('');
   }
@@ -1012,7 +1029,7 @@ export default function App() {
                     onChange={() => chooseMode('rail')}
                   />
                   <RailIcon />
-                  <span><strong>MRT/LRT time</strong><small>Balanced travel time</small></span>
+                  <span><strong>MRT/LRT time</strong><small>{selectedRailObjective.label}</small></span>
                 </label>
                 <label className={mode === 'distance' ? 'is-selected' : ''}>
                   <input
@@ -1038,8 +1055,8 @@ export default function App() {
                   <span>Customise fairness goal</span>
                   <small>
                     {selectedObjective.label}
-                    {(mode === 'rail' && railObjective === 'average') ||
-                    (mode === 'distance' && distanceObjective === 'centroid')
+                    {(mode === 'rail' && railObjective === DEFAULT_RAIL_OBJECTIVE) ||
+                    (mode === 'distance' && distanceObjective === DEFAULT_DISTANCE_OBJECTIVE)
                       ? ' (default)'
                       : ''}
                   </small>
@@ -1065,8 +1082,8 @@ export default function App() {
                       <span>
                         <strong>
                           {option.label}
-                          {(mode === 'rail' && option.id === 'average') ||
-                          (mode === 'distance' && option.id === 'centroid')
+                          {(mode === 'rail' && option.id === DEFAULT_RAIL_OBJECTIVE) ||
+                          (mode === 'distance' && option.id === DEFAULT_DISTANCE_OBJECTIVE)
                             ? ' (default)'
                             : ''}
                         </strong>

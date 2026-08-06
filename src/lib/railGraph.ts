@@ -7,6 +7,7 @@ import type {
   RankedStation,
   RailObjective,
 } from '../types';
+import { DEFAULT_RAIL_OBJECTIVE } from '../types';
 import { distanceMetrics, haversineKm } from './centroid';
 import { participantTravelTimeMetrics } from './journeyMetrics';
 
@@ -504,7 +505,7 @@ export function rankStationsByTravelTime(
   stations: MrtStation[],
   points: EndpointPoint[],
   center: Coordinate,
-  objective: RailObjective = 'average',
+  objective: RailObjective = DEFAULT_RAIL_OBJECTIVE,
 ): RankedStation[] {
   const graph = buildRailGraph(stations);
   const candidates = graph.stations;

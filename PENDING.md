@@ -41,8 +41,10 @@ tooltip/sub-label) should surface the signed-in participant name, e.g.
 ## 2. Fairness / method selector
 
 ### 2a. Default objective ordering
-**Status:** Done — `average` is first in `RAIL_OBJECTIVE_OPTIONS` and is the
-saved default in `loadSavedState`.
+**Status:** Done — Weighted centre (`weighted`) is the first and default MRT/LRT
+time objective. Shortest overall (`median`) is the first and default direct-
+distance objective. The same defaults apply to fresh local state, sample/reset
+actions, new shared plans, and legacy plans with no saved objective.
 
 ### 2b. `<details>` disclosure hides the rail-objective picker
 **Status:** Done — the active radio picker is inside a `<details>` disclosure in

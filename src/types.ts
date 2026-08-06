@@ -1,6 +1,8 @@
 export type Mode = 'distance' | 'rail';
 export type DistanceObjective = 'centroid' | 'median';
 export type RailObjective = 'minimax' | 'average' | 'weighted' | 'evenness';
+export const DEFAULT_DISTANCE_OBJECTIVE: DistanceObjective = 'median';
+export const DEFAULT_RAIL_OBJECTIVE: RailObjective = 'weighted';
 export type ParticipantColor =
   | 'coral'
   | 'orange'

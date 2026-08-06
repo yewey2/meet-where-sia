@@ -15,6 +15,8 @@ const SESSION_SECONDS = 60 * 60 * 24 * 30;
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_MEMBERS = 12;
 const MAX_PARTICIPANTS = 24;
+const DEFAULT_RAIL_OBJECTIVE = 'weighted';
+const DEFAULT_DISTANCE_OBJECTIVE = 'median';
 const PARTICIPANT_COLORS = new Set([
   'coral', 'orange', 'amber', 'green', 'teal',
   'cyan', 'blue', 'indigo', 'purple', 'pink',
@@ -875,8 +877,10 @@ function publicPlan(plan, currentMember) {
     mode: plan.mode,
     railObjective: plan.railObjective === 'minimax' || plan.railObjective === 'weighted' || plan.railObjective === 'evenness'
       ? plan.railObjective
-      : 'average',
-    distanceObjective: plan.distanceObjective === 'median' ? 'median' : 'centroid',
+      : plan.railObjective === 'average' ? 'average' : DEFAULT_RAIL_OBJECTIVE,
+    distanceObjective: plan.distanceObjective === 'centroid' || plan.distanceObjective === 'median'
+      ? plan.distanceObjective
+      : DEFAULT_DISTANCE_OBJECTIVE,
     participants: plan.participants.map((participant) => {
       const { nameKey: _nameKey, ...visible } = participant;
       return visible;
@@ -945,13 +949,15 @@ async function validateMutation(input, plan) {
         type: input.type,
         railObjective: input.railObjective === 'minimax' || input.railObjective === 'weighted' || input.railObjective === 'evenness'
           ? input.railObjective
-          : 'average',
+          : input.railObjective === 'average' ? 'average' : DEFAULT_RAIL_OBJECTIVE,
         updatedAt,
       };
     case 'setDistanceObjective':
       return {
         type: input.type,
-        distanceObjective: input.distanceObjective === 'median' ? 'median' : 'centroid',
+        distanceObjective: input.distanceObjective === 'centroid' || input.distanceObjective === 'median'
+          ? input.distanceObjective
+          : DEFAULT_DISTANCE_OBJECTIVE,
         updatedAt,
       };
     case 'resetPlan':
@@ -961,8 +967,10 @@ async function validateMutation(input, plan) {
         mode: input.mode === 'distance' ? 'distance' : 'rail',
         railObjective: input.railObjective === 'minimax' || input.railObjective === 'weighted' || input.railObjective === 'evenness'
           ? input.railObjective
-          : 'average',
-        distanceObjective: input.distanceObjective === 'median' ? 'median' : 'centroid',
+          : input.railObjective === 'average' ? 'average' : DEFAULT_RAIL_OBJECTIVE,
+        distanceObjective: input.distanceObjective === 'centroid' || input.distanceObjective === 'median'
+          ? input.distanceObjective
+          : DEFAULT_DISTANCE_OBJECTIVE,
         updatedAt,
       };
     case 'renamePlan': {
@@ -1075,8 +1083,10 @@ export function createPlansHandler({ store: injectedStore } = {}) {
             mode: body.mode === 'distance' ? 'distance' : 'rail',
             railObjective: body.railObjective === 'minimax' || body.railObjective === 'weighted' || body.railObjective === 'evenness'
               ? body.railObjective
-              : 'average',
-            distanceObjective: body.distanceObjective === 'median' ? 'median' : 'centroid',
+              : body.railObjective === 'average' ? 'average' : DEFAULT_RAIL_OBJECTIVE,
+            distanceObjective: body.distanceObjective === 'centroid' || body.distanceObjective === 'median'
+              ? body.distanceObjective
+              : DEFAULT_DISTANCE_OBJECTIVE,
             joiningEnabled: true,
             participants,
             members: [owner],

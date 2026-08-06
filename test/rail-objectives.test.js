@@ -13,7 +13,11 @@ async function loadRailGraph() {
   const metricsStub = `data:text/javascript,${encodeURIComponent(`
     export const participantTravelTimeMetrics = () => ({});
   `)}`;
+  const typesStub = `data:text/javascript,${encodeURIComponent(`
+    export const DEFAULT_RAIL_OBJECTIVE = 'weighted';
+  `)}`;
   const code = compiled.code
+    .replace('"../types"', JSON.stringify(typesStub))
     .replace('"./centroid"', JSON.stringify(centroidStub))
     .replace('"./journeyMetrics"', JSON.stringify(metricsStub));
   return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);

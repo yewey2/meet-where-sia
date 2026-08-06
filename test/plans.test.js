@@ -266,11 +266,11 @@ test('calculation objectives are created, mutated, reset, and exposed with old-p
     body: {
       action: 'create', title: 'Objective plan', displayName: 'Owner',
       email: 'objective@example.com', password: 'owner password 123',
-      participants: [participant], mode: 'rail', railObjective: 'average', distanceObjective: 'centroid',
+      participants: [participant], mode: 'rail',
     },
   });
-  assert.equal(created.body.plan.railObjective, 'average');
-  assert.equal(created.body.plan.distanceObjective, 'centroid');
+  assert.equal(created.body.plan.railObjective, 'weighted');
+  assert.equal(created.body.plan.distanceObjective, 'median');
   const planId = created.body.plan.id;
   const cookie = cookiePair(created.headers.get('set-cookie'));
 
@@ -286,11 +286,23 @@ test('calculation objectives are created, mutated, reset, and exposed with old-p
   });
   assert.equal(fairnessFirst.body.plan.railObjective, 'minimax');
 
+  const quickest = await request(handler, {
+    method: 'POST', cookie,
+    body: { action: 'mutate', planId, mutation: { type: 'setRailObjective', railObjective: 'average' } },
+  });
+  assert.equal(quickest.body.plan.railObjective, 'average');
+
   const weighted = await request(handler, {
     method: 'POST', cookie,
     body: { action: 'mutate', planId, mutation: { type: 'setRailObjective', railObjective: 'weighted' } },
   });
   assert.equal(weighted.body.plan.railObjective, 'weighted');
+
+  const distanceCentroid = await request(handler, {
+    method: 'POST', cookie,
+    body: { action: 'mutate', planId, mutation: { type: 'setDistanceObjective', distanceObjective: 'centroid' } },
+  });
+  assert.equal(distanceCentroid.body.plan.distanceObjective, 'centroid');
 
   const distanceMedian = await request(handler, {
     method: 'POST', cookie,
@@ -302,14 +314,14 @@ test('calculation objectives are created, mutated, reset, and exposed with old-p
     method: 'POST', cookie,
     body: { action: 'mutate', planId, mutation: { type: 'resetPlan', participants: [participant], mode: 'rail' } },
   });
-  assert.equal(reset.body.plan.railObjective, 'average');
-  assert.equal(reset.body.plan.distanceObjective, 'centroid');
+  assert.equal(reset.body.plan.railObjective, 'weighted');
+  assert.equal(reset.body.plan.distanceObjective, 'median');
 
   const stored = await store.get(`mws:plan:${planId}`);
   delete stored.railObjective;
   delete stored.distanceObjective;
   await store.set(`mws:plan:${planId}`, stored);
   const oldPlan = await request(handler, { url: `/api/plans?planId=${planId}` });
-  assert.equal(oldPlan.body.plan.railObjective, 'average');
-  assert.equal(oldPlan.body.plan.distanceObjective, 'centroid');
+  assert.equal(oldPlan.body.plan.railObjective, 'weighted');
+  assert.equal(oldPlan.body.plan.distanceObjective, 'median');
 });
