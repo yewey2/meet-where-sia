@@ -89,6 +89,11 @@ person/admin permissions remain locked to the appropriate member or owner.
 overall, modified-Weiszfeld handling, RMS display, shared-plan persistence,
 viewer-local calculation overrides, station codes, and A-D recommendation labels.
 
+### 2g. Fairness comparison affordance
+**Status:** Done. The oversized "Full comparison" action was replaced with a
+compact, accessible question-mark control beside the current fairness summary.
+It retains a descriptive accessible name and opens the full comparison dialog.
+
 ---
 
 ## 3. Station names & codes (separate agent work in progress)

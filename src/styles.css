@@ -3880,35 +3880,29 @@ button.alternative-row:focus-visible {
 }
 
 .rail-objective-help {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 44px;
-  padding: 7px 9px;
-  border: 0;
-  border-radius: 9px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--control-line);
+  border-radius: 50%;
   color: var(--accent-dark);
-  background: var(--accent-soft);
+  background: transparent;
   cursor: pointer;
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
 }
 
 .rail-objective-help:hover {
-  filter: brightness(1.05);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateY(-1px);
 }
 
 .rail-objective-help > span {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  font-family: Georgia, serif;
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 900;
   line-height: 1;
 }
 
@@ -4623,12 +4617,8 @@ button.alternative-row:focus-visible {
   }
 
   .rail-objective-guidance {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 9px;
-  }
-
-  .rail-objective-help {
-    width: 100%;
   }
 
   .rail-objective-disclosure-trigger small {

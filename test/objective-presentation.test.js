@@ -24,4 +24,7 @@ test('all rail and distance fairness choices remain visible in the planner', asy
   assert.match(types, /DEFAULT_DISTANCE_OBJECTIVE: DistanceObjective = 'median'/);
   assert.ok(source.indexOf("id: 'weighted'") < source.indexOf("id: 'average'"));
   assert.ok(source.indexOf("id: 'median'") < source.indexOf("id: 'centroid'"));
+  assert.match(source, /aria-label="Compare fairness goals"/);
+  assert.match(source, /<span aria-hidden="true">\?<\/span>/);
+  assert.doesNotMatch(source, />\s*Full comparison\s*</);
 });

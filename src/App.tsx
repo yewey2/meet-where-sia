@@ -1049,6 +1049,16 @@ export default function App() {
                   <strong>{selectedObjective.label}</strong>
                   <p id="objective-explanation">{selectedObjective.summary}</p>
                 </div>
+                <button
+                  type="button"
+                  className="rail-objective-help"
+                  aria-label="Compare fairness goals"
+                  aria-haspopup="dialog"
+                  title="Compare fairness goals"
+                  onClick={() => objectiveHelpDialogRef.current?.showModal()}
+                >
+                  <span aria-hidden="true">?</span>
+                </button>
               </div>
               <details className="rail-objective-disclosure">
                 <summary className="rail-objective-disclosure-trigger">
@@ -1092,15 +1102,6 @@ export default function App() {
                     </label>
                   ))}
                 </fieldset>
-                <button
-                  type="button"
-                  className="rail-objective-help"
-                  aria-haspopup="dialog"
-                  onClick={() => objectiveHelpDialogRef.current?.showModal()}
-                >
-                  <span aria-hidden="true">i</span>
-                  Full comparison
-                </button>
               </details>
               {mode === 'rail' && stationLoadError ? (
                 <p className="inline-warning">Rail data is unavailable right now. {stationLoadError}</p>
