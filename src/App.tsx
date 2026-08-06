@@ -80,16 +80,16 @@ const RAIL_OBJECTIVE_OPTIONS: Array<{
     id: 'average',
     label: 'Quickest overall',
     summary:
-      'Minimises the total combined travel time for the group. Best pick for most meetups.',
+      'Uses the least combined journey time for the group.',
     detail:
       'Minimises everyone’s combined journey time across the trip to the meetup and onwards afterwards.',
-    tradeoff: 'One person may have a slightly longer journey.',
+    tradeoff: 'The longest individual journey may still be noticeably longer.',
   },
   {
     id: 'weighted',
     label: 'Weighted centre',
     summary:
-      'Balances speed and fairness by giving progressively more weight to longer trips.',
+      'Gives longer full journeys extra influence by comparing squared travel times.',
     detail:
       'Minimises the average of everyone’s squared full journey time. A trip twice as long has four times the influence.',
     tradeoff: 'The group total may be slightly higher than the quickest-overall option.',
@@ -98,7 +98,7 @@ const RAIL_OBJECTIVE_OPTIONS: Array<{
     id: 'minimax',
     label: 'Keep trips manageable',
     summary:
-      'Chooses the place with the lowest possible ceiling on anyone’s full outing.',
+      'Makes the highest full outing time as short as possible.',
     detail:
       'This is the minimax calculation: it compares each station’s highest full outing time, whoever that person would be there.',
     tradeoff: 'The group’s combined journey time may be higher.',
@@ -107,7 +107,7 @@ const RAIL_OBJECTIVE_OPTIONS: Array<{
     id: 'evenness',
     label: 'Similar travel times',
     summary:
-      'Balances trip durations so everyone travels roughly the same amount.',
+      'Keeps everyone’s complete journey times close together.',
     detail:
       'Minimises the variance between people’s complete journey times so the effort is more evenly shared.',
     tradeoff: 'The fairest split may not be the quickest option for the group.',
@@ -124,14 +124,14 @@ const DISTANCE_OBJECTIVE_OPTIONS: Array<{
   {
     id: 'centroid',
     label: 'Balanced centre',
-    summary: 'A more central point when someone is much farther away.',
+    summary: 'Gives longer straight-line distances extra influence.',
     detail: 'Uses the arithmetic centroid, which minimises the average squared straight-line distance. A trip twice as long has four times the influence.',
     tradeoff: 'The group’s combined distance may be higher.',
   },
   {
     id: 'median',
     label: 'Shortest overall',
-    summary: 'The least total straight-line distance for the group.',
+    summary: 'Uses the least combined straight-line distance for the group.',
     detail: 'Uses the geometric median, which minimises the sum of ordinary straight-line distances to every start and end point.',
     tradeoff: 'Someone far from the others may travel much farther than everyone else.',
   },

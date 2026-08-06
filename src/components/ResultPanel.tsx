@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type {
+  DistanceObjective,
   DistanceResult,
   EndpointPoint,
   MeetingResult,
@@ -64,6 +65,10 @@ function objectiveMetric(station: RankedStation, objective: RailObjective): stri
   }
   if (objective === 'evenness') return `${formatMinutes(station.standardDeviationMinutes)} spread`;
   return `${formatMinutes(station.maxMinutes)} time ceiling`;
+}
+
+function distanceObjectiveLabel(objective: DistanceObjective): string {
+  return objective === 'centroid' ? 'Balanced centre' : 'Shortest overall';
 }
 
 const RAIL_LINE_NAMES: Record<string, string> = {
@@ -431,7 +436,7 @@ export function ResultPanel({
   const resultSummary =
     result.mode === 'rail'
       ? `Meet at ${result.title}. ${objectiveLabel(result.objective)}: ${objectiveMetric(result.station, result.objective)}.`
-      : `Meet near ${result.title}. Average distance: ${formatKm(result.averageKm)}.`;
+      : `Meet near ${result.title}. ${distanceObjectiveLabel(result.objective)}: ${formatKm(result.averageKm)} average distance.`;
   // Local plans cannot be reconstructed by recipients, so share the compact Maps
   // destination directly. Shared plans retain their short plan URL and put the
   // independently useful Maps destination in the message.
@@ -729,8 +734,8 @@ export function ResultPanel({
         {result.mode === 'rail'
           ? `Compared ${result.candidateCount} connected stations for ${objectiveLabel(result.objective).toLowerCase()}, including each person’s journey to the meetup and onwards. Estimates cover walking, waits, trains and transfers, but not buses.`
           : result.objective === 'centroid'
-            ? 'This point keeps the group geographically central by giving longer distances more influence.'
-            : 'This point approximately minimises the combined straight-line distance to every location.'}
+            ? 'This arithmetic centroid minimises the average squared straight-line distance to every start and end point.'
+            : 'This geometric median approximately minimises the combined straight-line distance to every start and end point.'}
       </p>
     </section>
   );
